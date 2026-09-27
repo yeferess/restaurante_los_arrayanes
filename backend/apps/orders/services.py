@@ -1,0 +1,338 @@
+"""Pure business logic for the orders module (RF-1..RF-13).
+
+Kept free of HTTP/request concerns so it can be unit tested directly
+(see specs/003-mesas-pedidos/plan.md, sections 1 and 6).
+"""
+
+from asgiref.sync import async_to_sync
+from channels.layers import get_channel_layer
+from django.core.exceptions import ValidationError
+
+from apps.menu.models import Product
+from apps.orders.consumers import ORDERS_GROUP_NAME
+from apps.orders.models import Order, OrderAction, OrderItem, Table
+
+ITEM_NAME_MAX_LENGTH = 100
+NOTE_MAX_LENGTH = 200
+
+
+def notify_orders_changed():
+    """RF-6 (plan, sección 4): notify the admin panel that an order
+    changed. Call sites already match the scope decided in plan.md
+    (notifies from sending an order onward, never for a private draft).
+    """
+    channel_layer = get_channel_layer()
+    async_to_sync(channel_layer.group_send)(
+        ORDERS_GROUP_NAME, {"type": "pedidos.actualizado"}
+    )
+
+
+def resize_tables(new_count):
+    """RF-1: set the total number of tables to `new_count` (1..N)."""
+    if new_count < 1:
+        raise ValidationError("Debe haber al menos 1 mesa.", code="invalid")
+
+    current_count = Table.objects.count()
+    if new_count > current_count:
+        Table.objects.bulk_create(
+            [Table(number=n) for n in range(current_count + 1, new_count + 1)]
+        )
+    elif new_count < current_count:
+        to_remove = Table.objects.filter(number__gt=new_count)
+        if to_remove.exclude(status=Table.Status.FREE).exists():
+            raise ValidationError(
+                "Alguna de las mesas a eliminar no está libre.", code="not_free"
+            )
+        to_remove.delete()
+    return Table.objects.order_by("number")
+
+
+def create_order(waiter, table_number):
+    """RF-2: create a draft order on a free table."""
+    try:
+        table = Table.objects.get(number=table_number)
+    except Table.DoesNotExist:
+        raise ValidationError("La mesa indicada no existe.", code="invalid")
+    if table.status != Table.Status.FREE:
+        raise ValidationError("La mesa no está libre.", code="not_free")
+
+    order = Order.objects.create(table_number=table_number, waiter=waiter)
+    table.status = Table.Status.OCCUPIED
+    table.save(update_fields=["status"])
+    return order
+
+
+def remove_item(order, item):
+    """RF-2: remove a line from a draft order — no reason, no trace."""
+    if order.status != Order.Status.DRAFT:
+        raise ValidationError(
+            "Solo se pueden quitar ítems de un pedido en borrador.",
+            code="not_draft",
+        )
+    item.delete()
+
+
+def register_action(
+    order,
+    action_type,
+    performed_by,
+    reason=None,
+    item=None,
+    from_table_number=None,
+    to_table_number=None,
+):
+    """RF-12: write one traceability row for a sensitive order action."""
+    return OrderAction.objects.create(
+        order=order,
+        action_type=action_type,
+        performed_by=performed_by,
+        reason=reason,
+        item=item,
+        from_table_number=from_table_number,
+        to_table_number=to_table_number,
+    )
+
+
+def _free_table(table_number):
+    Table.objects.filter(number=table_number).update(status=Table.Status.FREE)
+
+
+def _validate_note(note):
+    if note and len(note) > NOTE_MAX_LENGTH:
+        raise ValidationError(
+            f"La nota no puede superar los {NOTE_MAX_LENGTH} caracteres.",
+            code="invalid",
+        )
+
+
+def _validate_off_menu_name(name):
+    if not name or not name.strip():
+        raise ValidationError(
+            "El nombre del ítem no puede estar vacío.", code="invalid"
+        )
+    if len(name.strip()) > ITEM_NAME_MAX_LENGTH:
+        raise ValidationError(
+            f"El nombre no puede superar los {ITEM_NAME_MAX_LENGTH} caracteres.",
+            code="invalid",
+        )
+
+
+def _validate_price(price):
+    try:
+        is_positive = price is not None and price > 0
+    except TypeError:
+        raise ValidationError(
+            "El precio debe ser un valor numérico mayor que cero.", code="invalid"
+        )
+    if not is_positive:
+        raise ValidationError(
+            "El precio debe ser un valor numérico mayor que cero.", code="invalid"
+        )
+
+
+def add_item(
+    order, product_id=None, name=None, price=None, quantity=1, note=""
+):
+    """RF-3, RF-4, RF-5: add a catalog or off-menu item to an order.
+
+    `line_type` is inferred from the order's current status: `ORIGINAL`
+    while still in "borrador" (draft), `ADDITION` once "en preparación".
+    """
+    if order.status in (Order.Status.CHARGED, Order.Status.VOIDED):
+        raise ValidationError(
+            "Este pedido no admite agregar ítems.", code="not_editable"
+        )
+
+    _validate_note(note)
+
+    if product_id is not None:
+        try:
+            product = Product.objects.get(pk=product_id)
+        except (Product.DoesNotExist, ValueError, TypeError):
+            raise ValidationError("El producto no existe.", code="not_found")
+        if not product.is_available:
+            raise ValidationError(
+                "El producto ya no está disponible.", code="not_available"
+            )
+        item_name = product.name
+        item_price = product.price
+        catalog_product = product
+    else:
+        _validate_off_menu_name(name)
+        _validate_price(price)
+        item_name = name.strip()
+        item_price = price
+        catalog_product = None
+
+    line_type = (
+        OrderItem.LineType.ORIGINAL
+        if order.status == Order.Status.DRAFT
+        else OrderItem.LineType.ADDITION
+    )
+
+    item = OrderItem.objects.create(
+        order=order,
+        catalog_product=catalog_product,
+        name=item_name,
+        unit_price=item_price,
+        quantity=quantity,
+        note=note or "",
+        line_type=line_type,
+    )
+    if line_type == OrderItem.LineType.ADDITION:
+        notify_orders_changed()
+    return item
+
+
+def update_item_note(item, note):
+    """RF-4: edit an existing item's note while it and its order are
+    still active."""
+    if item.is_voided or item.order.status in (
+        Order.Status.CHARGED,
+        Order.Status.VOIDED,
+    ):
+        raise ValidationError(
+            "No se puede editar la nota de este ítem.", code="not_editable"
+        )
+    _validate_note(note)
+    item.note = note
+    item.save(update_fields=["note"])
+    return item
+
+
+def send_order(order):
+    """RF-5: draft -> in_progress. Resending an already-sent order is a
+    silent no-op."""
+    if order.status != Order.Status.DRAFT:
+        return order
+    if not order.items.filter(is_voided=False).exists():
+        raise ValidationError("El pedido no tiene ningún ítem.", code="empty")
+
+    order.status = Order.Status.IN_PROGRESS
+    order.save(update_fields=["status"])
+    notify_orders_changed()
+    return order
+
+
+def void_item(order, item, waiter, reason):
+    """RF-6: void a single line of a sent order, with a reason.
+
+    If this leaves the order with no active items, it auto-voids the
+    whole order (RF-11), reusing this same waiter/reason instead of
+    asking for a new one.
+    """
+    if order.status != Order.Status.IN_PROGRESS:
+        raise ValidationError(
+            "Este pedido no admite anulación de ítems.", code="not_editable"
+        )
+
+    item.is_voided = True
+    item.void_reason = reason
+    item.save(update_fields=["is_voided", "void_reason"])
+    register_action(
+        order, OrderAction.ActionType.ITEM_VOIDED, waiter, reason=reason, item=item
+    )
+
+    if not order.items.filter(is_voided=False).exists():
+        order.status = Order.Status.VOIDED
+        order.save(update_fields=["status"])
+        _free_table(order.table_number)
+        register_action(
+            order, OrderAction.ActionType.ORDER_VOIDED_AUTO, waiter, reason=reason
+        )
+
+    notify_orders_changed()
+    return item
+
+
+def fix_table(order, waiter, new_table_number):
+    """RF-7: correct an order's table to a free one; the owner never
+    changes."""
+    if order.status in (Order.Status.CHARGED, Order.Status.VOIDED):
+        raise ValidationError(
+            "Este pedido no admite corrección de mesa.", code="not_editable"
+        )
+    try:
+        destination = Table.objects.get(number=new_table_number)
+    except Table.DoesNotExist:
+        raise ValidationError("La mesa destino no existe.", code="invalid")
+    if destination.status != Table.Status.FREE:
+        raise ValidationError("La mesa destino no está libre.", code="not_free")
+
+    original_table_number = order.table_number
+    _free_table(original_table_number)
+    destination.status = Table.Status.OCCUPIED
+    destination.save(update_fields=["status"])
+    order.table_number = new_table_number
+    order.save(update_fields=["table_number"])
+    register_action(
+        order,
+        OrderAction.ActionType.TABLE_CORRECTED,
+        waiter,
+        from_table_number=original_table_number,
+        to_table_number=new_table_number,
+    )
+    return order
+
+
+def set_delivered(order, delivered):
+    """RF-8: toggle the delivered flag, independent of the main status —
+    except a voided order, where it stops being relevant."""
+    if order.status == Order.Status.VOIDED:
+        raise ValidationError(
+            "Un pedido anulado no admite este cambio.", code="not_editable"
+        )
+    order.delivered = delivered
+    order.save(update_fields=["delivered"])
+    return order
+
+
+def charge_order(order, admin):
+    """RF-9: charge the order of an occupied table (admin-only at the
+    view/permission layer)."""
+    try:
+        table = Table.objects.get(number=order.table_number)
+    except Table.DoesNotExist:
+        table = None
+    if table is None or table.status != Table.Status.OCCUPIED:
+        raise ValidationError("La mesa no está ocupada.", code="not_occupied")
+
+    order.status = Order.Status.CHARGED
+    order.save(update_fields=["status"])
+    table.status = Table.Status.PAID
+    table.save(update_fields=["status"])
+    register_action(order, OrderAction.ActionType.CHARGED, admin)
+    return order
+
+
+def release_table(table_number):
+    """RF-10: any waiter can free a paid table."""
+    try:
+        table = Table.objects.get(number=table_number)
+    except Table.DoesNotExist:
+        raise ValidationError("La mesa no existe.", code="invalid")
+    if table.status != Table.Status.PAID:
+        raise ValidationError("La mesa no está pagada.", code="not_paid")
+
+    table.status = Table.Status.FREE
+    table.save(update_fields=["status"])
+    return table
+
+
+def void_order(order, admin, reason):
+    """RF-11: void a whole order (draft or in progress), with a reason.
+    A charged order can never be voided (admin-only at the
+    view/permission layer)."""
+    if order.status == Order.Status.CHARGED:
+        raise ValidationError(
+            "Un pedido cobrado no puede anularse.", code="already_charged"
+        )
+    if order.status == Order.Status.VOIDED:
+        raise ValidationError("Este pedido ya está anulado.", code="already_voided")
+
+    order.status = Order.Status.VOIDED
+    order.save(update_fields=["status"])
+    _free_table(order.table_number)
+    register_action(order, OrderAction.ActionType.ORDER_VOIDED, admin, reason=reason)
+    notify_orders_changed()
+    return order
