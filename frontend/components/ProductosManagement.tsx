@@ -12,6 +12,7 @@ import {
   type Product,
   type ApiErrorBody,
 } from "@/lib/api/menu";
+import styles from "./ProductosManagement.module.css";
 
 function formatError(error: unknown): string {
   const detail = (error as ApiErrorBody)?.detail;
@@ -113,62 +114,87 @@ export function ProductosManagement() {
 
   return (
     <section>
-      <h1>Gestión de productos</h1>
+      <h1 className={styles.heading}>Gestión de productos</h1>
       {categories.length === 0 ? (
-        <p role="status">Crea al menos una categoría antes de agregar productos.</p>
+        <p className={styles.message} role="status">
+          Crea al menos una categoría antes de agregar productos.
+        </p>
       ) : (
-        <form onSubmit={handleCreate}>
-          <label htmlFor="new-product-name">Nombre del producto</label>
-          <input
-            id="new-product-name"
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            required
-          />
-          <label htmlFor="new-product-category">Categoría</label>
-          <select
-            id="new-product-category"
-            value={newCategoryId}
-            onChange={(e) => setNewCategoryId(e.target.value)}
-            required
-          >
-            {categories.map((category) => (
-              <option key={category.id} value={category.id}>
-                {category.name}
-              </option>
-            ))}
-          </select>
-          <label htmlFor="new-product-price">Precio</label>
-          <input
-            id="new-product-price"
-            type="number"
-            step="0.01"
-            value={newPrice}
-            onChange={(e) => setNewPrice(e.target.value)}
-            required
-          />
-          <button type="submit">Crear producto</button>
+        <form className={styles.createForm} onSubmit={handleCreate}>
+          <div className={styles.field}>
+            <label className={styles.label} htmlFor="new-product-name">
+              Nombre del producto
+            </label>
+            <input
+              id="new-product-name"
+              className={styles.input}
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              required
+            />
+          </div>
+          <div className={styles.field}>
+            <label className={styles.label} htmlFor="new-product-category">
+              Categoría
+            </label>
+            <select
+              id="new-product-category"
+              className={styles.select}
+              value={newCategoryId}
+              onChange={(e) => setNewCategoryId(e.target.value)}
+              required
+            >
+              {categories.map((category) => (
+                <option key={category.id} value={category.id}>
+                  {category.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className={styles.field}>
+            <label className={styles.label} htmlFor="new-product-price">
+              Precio
+            </label>
+            <input
+              id="new-product-price"
+              className={`${styles.input} ${styles.priceInput}`}
+              type="number"
+              step="0.01"
+              value={newPrice}
+              onChange={(e) => setNewPrice(e.target.value)}
+              required
+            />
+          </div>
+          <button type="submit" className={styles.primaryButton}>
+            Crear producto
+          </button>
         </form>
       )}
-      {message && <p role="status">{message}</p>}
-      <ul>
+      {message && (
+        <p className={styles.message} role="status">
+          {message}
+        </p>
+      )}
+      <ul className={styles.list}>
         {products.map((product) => {
           const draft = drafts[product.id] ?? draftFrom(product);
           return (
-            <li key={product.id}>
-              <label htmlFor={`product-name-${product.id}`}>
+            <li key={product.id} className={styles.row}>
+              <label className={styles.rowLabel} htmlFor={`product-name-${product.id}`}>
                 Nombre ({product.name})
               </label>
               <input
                 id={`product-name-${product.id}`}
+                className={`${styles.rowInput} ${styles.rowNameInput}`}
                 value={draft.name}
                 onChange={(e) => updateDraft(product.id, { name: e.target.value })}
               />
-              <label htmlFor={`product-category-${product.id}`}>
+              <label className={styles.rowLabel} htmlFor={`product-category-${product.id}`}>
                 Categoría ({product.name})
               </label>
               <select
                 id={`product-category-${product.id}`}
+                className={styles.rowSelect}
                 value={draft.categoryId}
                 onChange={(e) => updateDraft(product.id, { categoryId: e.target.value })}
               >
@@ -178,23 +204,36 @@ export function ProductosManagement() {
                   </option>
                 ))}
               </select>
-              <label htmlFor={`product-price-${product.id}`}>
+              <label className={styles.rowLabel} htmlFor={`product-price-${product.id}`}>
                 Precio ({product.name})
               </label>
               <input
                 id={`product-price-${product.id}`}
+                className={`${styles.rowInput} ${styles.rowPriceInput}`}
                 type="number"
                 step="0.01"
                 value={draft.price}
                 onChange={(e) => updateDraft(product.id, { price: e.target.value })}
               />
-              <button type="button" onClick={() => handleSave(product.id)}>
+              <button
+                type="button"
+                className={styles.secondaryButton}
+                onClick={() => handleSave(product.id)}
+              >
                 Guardar
               </button>
-              <button type="button" onClick={() => handleToggleAvailability(product)}>
+              <button
+                type="button"
+                className={styles.secondaryButton}
+                onClick={() => handleToggleAvailability(product)}
+              >
                 {product.is_available ? "Marcar no disponible" : "Marcar disponible"}
               </button>
-              <button type="button" onClick={() => handleDelete(product.id)}>
+              <button
+                type="button"
+                className={styles.dangerButton}
+                onClick={() => handleDelete(product.id)}
+              >
                 Eliminar
               </button>
             </li>

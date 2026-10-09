@@ -5,6 +5,7 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from apps.orders import services
+from apps.orders.models import Order
 
 User = get_user_model()
 
@@ -32,7 +33,8 @@ class IncomingOrdersViewTests(APITestCase):
         self.charged_order = services.create_order(self.waiter, table_number=3)
         services.add_item(self.charged_order, name="Te", price=Decimal("3.00"))
         services.send_order(self.charged_order)
-        services.charge_order(self.charged_order, self.admin)
+        self.charged_order.status = Order.Status.CHARGED
+        self.charged_order.save(update_fields=["status"])
 
     def _login_admin(self):
         self.client.post(

@@ -7,6 +7,19 @@ import {
   type Table,
   type ApiErrorBody,
 } from "@/lib/api/orders";
+import styles from "./TableCountSettings.module.css";
+
+const STATUS_LABEL: Record<Table["status"], string> = {
+  FREE: "Libre",
+  OCCUPIED: "Ocupada",
+  PAID: "Pagada",
+};
+
+const STATUS_BADGE_CLASS: Record<Table["status"], string> = {
+  FREE: styles.badgeFree,
+  OCCUPIED: styles.badgeOccupied,
+  PAID: styles.badgePaid,
+};
 
 function formatError(error: unknown): string {
   const detail = (error as ApiErrorBody)?.detail;
@@ -44,24 +57,38 @@ export function TableCountSettings() {
 
   return (
     <section>
-      <h1>Gestión de mesas</h1>
-      <form onSubmit={handleSubmit}>
-        <label htmlFor="table-count">Número de mesas</label>
-        <input
-          id="table-count"
-          type="number"
-          min={1}
-          value={count}
-          onChange={(e) => setCount(e.target.value)}
-          required
-        />
-        <button type="submit">Guardar</button>
+      <h1 className={styles.heading}>Gestión de mesas</h1>
+      <form className={styles.form} onSubmit={handleSubmit}>
+        <div className={styles.field}>
+          <label className={styles.label} htmlFor="table-count">
+            Número de mesas
+          </label>
+          <input
+            id="table-count"
+            className={styles.input}
+            type="number"
+            min={1}
+            value={count}
+            onChange={(e) => setCount(e.target.value)}
+            required
+          />
+        </div>
+        <button type="submit" className={styles.saveButton}>
+          Guardar
+        </button>
       </form>
-      {message && <p role="status">{message}</p>}
-      <ul>
+      {message && (
+        <p className={styles.message} role="status">
+          {message}
+        </p>
+      )}
+      <ul className={styles.grid}>
         {tables.map((table) => (
-          <li key={table.number}>
-            Mesa {table.number} — {table.status}
+          <li key={table.number} className={styles.card}>
+            <span className={`${styles.badge} ${STATUS_BADGE_CLASS[table.status]}`}>
+              {STATUS_LABEL[table.status]}
+            </span>
+            <span className={styles.number}>Mesa {table.number}</span>
           </li>
         ))}
       </ul>

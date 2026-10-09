@@ -1,12 +1,50 @@
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* "Order ticket" palette — shared across admin and mesero screens. */
+  --paper: #faf8f3;
+  --surface: #ffffff;
+  --ink: #171717;
+  --muted: #8a8378;
+  --border: #ddd6cc;
+  --accent: #c2541f;
+  --accent-pressed: #a2440f;
+  --accent-soft: #f3e2d6;
+
+  /* Table/order status — distinct, functional colors, not decoration. */
+  --status-free: #3f7a52;
+  --status-free-soft: #e3efe4;
+  --status-occupied: #b8792a;
+  --status-occupied-soft: #f5e9d8;
+  --status-paid: #4f5f84;
+  --status-paid-soft: #e4e7f0;
+  --status-danger: #9a2d1f;
+  --status-danger-soft: #f6e2de;
+
+  --background: var(--paper);
+  --foreground: var(--ink);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --paper: #121110;
+    --surface: #1b1917;
+    --ink: #ededed;
+    --muted: #a39c8f;
+    --border: #3a362f;
+    --accent: #e07a42;
+    --accent-pressed: #f0956a;
+    --accent-soft: #3a2a20;
+
+    --status-free: #6fae82;
+    --status-free-soft: #1c2a1f;
+    --status-occupied: #d9a65c;
+    --status-occupied-soft: #2d2518;
+    --status-paid: #8d9cc7;
+    --status-paid-soft: #20263a;
+    --status-danger: #ff9b85;
+    --status-danger-soft: #2e1d19;
+
+    --background: var(--paper);
+    --foreground: var(--ink);
   }
 }
 
@@ -26,7 +64,7 @@ body {
   flex-direction: column;
   color: var(--foreground);
   background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -40,6 +78,12 @@ body {
 a {
   color: inherit;
   text-decoration: none;
+}
+
+button,
+input,
+select {
+  font-family: inherit;
 }
 
 @media (prefers-color-scheme: dark) {

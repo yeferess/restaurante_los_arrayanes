@@ -16,6 +16,15 @@ ITEM_NAME_MAX_LENGTH = 100
 NOTE_MAX_LENGTH = 200
 
 
+def _register_print_event(order, ticket_type):
+    """Hook into 004-impresion-cocina — imported lazily to avoid a
+    circular import (kitchen_printing.services itself imports from this
+    module)."""
+    from apps.kitchen_printing.services import register_event_and_print
+
+    return register_event_and_print(order, ticket_type)
+
+
 def notify_orders_changed():
     """RF-6 (plan, sección 4): notify the admin panel that an order
     changed. Call sites already match the scope decided in plan.md
@@ -181,6 +190,7 @@ def add_item(
     )
     if line_type == OrderItem.LineType.ADDITION:
         notify_orders_changed()
+        order.print_warning = _register_print_event(order, "ADDITION")
     return item
 
 
@@ -211,6 +221,7 @@ def send_order(order):
     order.status = Order.Status.IN_PROGRESS
     order.save(update_fields=["status"])
     notify_orders_changed()
+    order.print_warning = _register_print_event(order, "NEW_ORDER")
     return order
 
 
@@ -240,6 +251,8 @@ def void_item(order, item, waiter, reason):
         register_action(
             order, OrderAction.ActionType.ORDER_VOIDED_AUTO, waiter, reason=reason
         )
+    else:
+        order.print_warning = _register_print_event(order, "VOID")
 
     notify_orders_changed()
     return item
@@ -284,24 +297,6 @@ def set_delivered(order, delivered):
         )
     order.delivered = delivered
     order.save(update_fields=["delivered"])
-    return order
-
-
-def charge_order(order, admin):
-    """RF-9: charge the order of an occupied table (admin-only at the
-    view/permission layer)."""
-    try:
-        table = Table.objects.get(number=order.table_number)
-    except Table.DoesNotExist:
-        table = None
-    if table is None or table.status != Table.Status.OCCUPIED:
-        raise ValidationError("La mesa no está ocupada.", code="not_occupied")
-
-    order.status = Order.Status.CHARGED
-    order.save(update_fields=["status"])
-    table.status = Table.Status.PAID
-    table.save(update_fields=["status"])
-    register_action(order, OrderAction.ActionType.CHARGED, admin)
     return order
 
 

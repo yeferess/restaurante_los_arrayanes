@@ -64,18 +64,17 @@ class NotifyOrdersChangedTests(TestCase):
         mock_notify.assert_called_once()
 
     @patch("apps.orders.services.notify_orders_changed")
-    def test_charging_does_not_notify(self, mock_notify):
-        services.charge_order(self.order, self.admin)
-        mock_notify.assert_not_called()
-
-    @patch("apps.orders.services.notify_orders_changed")
     def test_marking_delivered_does_not_notify(self, mock_notify):
         services.set_delivered(self.order, True)
         mock_notify.assert_not_called()
 
     @patch("apps.orders.services.notify_orders_changed")
     def test_releasing_the_table_does_not_notify(self, mock_notify):
-        services.charge_order(self.order, self.admin)
+        from apps.orders.models import Table
+
+        table = Table.objects.get(number=1)
+        table.status = Table.Status.PAID
+        table.save(update_fields=["status"])
         mock_notify.reset_mock()
         services.release_table(table_number=1)
         mock_notify.assert_not_called()

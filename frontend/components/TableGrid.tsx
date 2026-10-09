@@ -7,6 +7,19 @@ import {
   type Table,
   type ApiErrorBody,
 } from "@/lib/api/orders";
+import styles from "./TableGrid.module.css";
+
+const STATUS_LABEL: Record<Table["status"], string> = {
+  FREE: "Libre",
+  OCCUPIED: "Ocupada",
+  PAID: "Pagada",
+};
+
+const STATUS_BADGE_CLASS: Record<Table["status"], string> = {
+  FREE: styles.badgeFree,
+  OCCUPIED: styles.badgeOccupied,
+  PAID: styles.badgePaid,
+};
 
 function formatError(error: unknown): string {
   const detail = (error as ApiErrorBody)?.detail;
@@ -38,15 +51,26 @@ export function TableGrid() {
   }
 
   return (
-    <section>
-      <h1>Mesas</h1>
-      {message && <p role="status">{message}</p>}
-      <ul>
+    <section className={styles.section}>
+      <h1 className={styles.heading}>Mesas</h1>
+      {message && (
+        <p className={styles.message} role="status">
+          {message}
+        </p>
+      )}
+      <ul className={styles.grid}>
         {tables.map((table) => (
-          <li key={table.number}>
-            Mesa {table.number} — {table.status}
+          <li key={table.number} className={styles.card}>
+            <span className={`${styles.badge} ${STATUS_BADGE_CLASS[table.status]}`}>
+              {STATUS_LABEL[table.status]}
+            </span>
+            <span className={styles.number}>Mesa {table.number}</span>
             {table.status === "FREE" && (
-              <button type="button" onClick={() => handleCreate(table.number)}>
+              <button
+                type="button"
+                className={styles.createButton}
+                onClick={() => handleCreate(table.number)}
+              >
                 Crear pedido
               </button>
             )}

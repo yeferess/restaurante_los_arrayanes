@@ -9,6 +9,7 @@ import {
   type Category,
   type ApiErrorBody,
 } from "@/lib/api/menu";
+import styles from "./CategoriasManagement.module.css";
 
 function formatError(error: unknown): string {
   const detail = (error as ApiErrorBody)?.detail;
@@ -69,33 +70,55 @@ export function CategoriasManagement() {
 
   return (
     <section>
-      <h1>Gestión de categorías</h1>
-      <form onSubmit={handleCreate}>
-        <label htmlFor="new-category-name">Nueva categoría</label>
-        <input
-          id="new-category-name"
-          value={newName}
-          onChange={(e) => setNewName(e.target.value)}
-          required
-        />
-        <button type="submit">Crear categoría</button>
+      <h1 className={styles.heading}>Gestión de categorías</h1>
+      <form className={styles.createForm} onSubmit={handleCreate}>
+        <div className={styles.field}>
+          <label className={styles.label} htmlFor="new-category-name">
+            Nueva categoría
+          </label>
+          <input
+            id="new-category-name"
+            className={styles.input}
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            required
+          />
+        </div>
+        <button type="submit" className={styles.primaryButton}>
+          Crear categoría
+        </button>
       </form>
-      {message && <p role="status">{message}</p>}
-      <ul>
+      {message && (
+        <p className={styles.message} role="status">
+          {message}
+        </p>
+      )}
+      <ul className={styles.list}>
         {categories.map((category) => (
-          <li key={category.id}>
-            <label htmlFor={`rename-category-${category.id}`}>Nombre</label>
+          <li key={category.id} className={styles.row}>
+            <label className={styles.rowLabel} htmlFor={`rename-category-${category.id}`}>
+              Nombre
+            </label>
             <input
               id={`rename-category-${category.id}`}
+              className={styles.rowInput}
               value={renameDrafts[category.id] ?? ""}
               onChange={(e) =>
                 setRenameDrafts((prev) => ({ ...prev, [category.id]: e.target.value }))
               }
             />
-            <button type="button" onClick={() => handleRename(category.id)}>
+            <button
+              type="button"
+              className={styles.secondaryButton}
+              onClick={() => handleRename(category.id)}
+            >
               Renombrar
             </button>
-            <button type="button" onClick={() => handleDelete(category.id)}>
+            <button
+              type="button"
+              className={styles.dangerButton}
+              onClick={() => handleDelete(category.id)}
+            >
               Eliminar
             </button>
           </li>

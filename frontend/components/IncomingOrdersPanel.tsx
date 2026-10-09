@@ -3,12 +3,13 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   listIncomingOrders,
-  chargeOrder,
   voidOrder,
   type Order,
   type ApiErrorBody,
 } from "@/lib/api/orders";
 import { subscribeToOrderUpdates } from "@/lib/api/ordersSocket";
+import { ChargeOrderModal } from "./ChargeOrderModal";
+import styles from "./IncomingOrdersPanel.module.css";
 
 function formatError(error: unknown): string {
   const detail = (error as ApiErrorBody)?.detail;
@@ -24,6 +25,7 @@ function formatError(error: unknown): string {
 export function IncomingOrdersPanel() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [message, setMessage] = useState<string | null>(null);
+  const [chargingOrder, setChargingOrder] = useState<Order | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -41,14 +43,9 @@ export function IncomingOrdersPanel() {
     return () => handle.close();
   }, [refresh]);
 
-  async function handleCharge(order: Order) {
-    setMessage(null);
-    try {
-      await chargeOrder(order.id);
-      await refresh();
-    } catch (error) {
-      setMessage(formatError(error));
-    }
+  async function handleChargedSuccessfully() {
+    setChargingOrder(null);
+    await refresh();
   }
 
   async function handleVoid(order: Order) {
@@ -65,25 +62,58 @@ export function IncomingOrdersPanel() {
 
   return (
     <section>
-      <h1>Pedidos entrantes</h1>
-      <button type="button" onClick={refresh}>
-        Actualizar
-      </button>
-      {message && <p role="status">{message}</p>}
-      <ul>
-        {orders.map((order) => (
-          <li key={order.id}>
-            Pedido {order.id} — Mesa {order.table_number} — total $
-            {order.total}
-            <button type="button" onClick={() => handleCharge(order)}>
-              Cobrar
-            </button>
-            <button type="button" onClick={() => handleVoid(order)}>
-              Anular pedido
-            </button>
-          </li>
-        ))}
-      </ul>
+      <div className={styles.headerRow}>
+        <h1 className={styles.heading}>Pedidos entrantes</h1>
+        <button type="button" className={styles.refreshButton} onClick={refresh}>
+          Actualizar
+        </button>
+      </div>
+      {message && (
+        <p className={styles.message} role="status">
+          {message}
+        </p>
+      )}
+      {orders.length === 0 ? (
+        <p className={styles.empty}>No hay pedidos en preparación por ahora.</p>
+      ) : (
+        <ul className={styles.list}>
+          {orders.map((order) => (
+            <li key={order.id} className={styles.card}>
+              <div className={styles.cardHeader}>
+                <span className={styles.orderId}>Pedido {order.id}</span>
+                <span className={styles.table}>Mesa {order.table_number}</span>
+              </div>
+              <div className={styles.total}>${order.total}</div>
+              {order.has_pending_print && (
+                <span className={styles.printPendingBadge}>No impreso en cocina</span>
+              )}
+              <div className={styles.actions}>
+                <button
+                  type="button"
+                  className={`${styles.actionButton} ${styles.chargeButton}`}
+                  onClick={() => setChargingOrder(order)}
+                >
+                  Cobrar
+                </button>
+                <button
+                  type="button"
+                  className={`${styles.actionButton} ${styles.voidButton}`}
+                  onClick={() => handleVoid(order)}
+                >
+                  Anular pedido
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+      {chargingOrder && (
+        <ChargeOrderModal
+          order={chargingOrder}
+          onClose={() => setChargingOrder(null)}
+          onCharged={handleChargedSuccessfully}
+        />
+      )}
     </section>
   );
 }

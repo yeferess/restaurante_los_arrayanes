@@ -3,6 +3,7 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from apps.orders.models import OrderAction
+from apps.payments.models import PaymentAccount
 
 User = get_user_model()
 
@@ -110,7 +111,12 @@ class OrderLifecycleFlowTests(APITestCase):
 
         # RF-9: el admin cobra el pedido
         self._login_admin()
-        charge = self.client.post(f"/api/pedidos/{order_id}/cobrar")
+        account = PaymentAccount.objects.get(name="Efectivo")
+        charge = self.client.post(
+            f"/api/pedidos/{order_id}/cobrar",
+            {"account_id": account.id},
+            format="json",
+        )
         self.assertEqual(charge.status_code, status.HTTP_200_OK)
         self.assertEqual(charge.data["status"], "CHARGED")
 

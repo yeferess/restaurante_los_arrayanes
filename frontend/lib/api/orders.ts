@@ -1,7 +1,8 @@
 // Orders API client (T62 — RF-1 a RF-11).
 
-const BACKEND_API_URL =
-  process.env.NEXT_PUBLIC_BACKEND_API_URL ?? "http://127.0.0.1:8000";
+import { requestJson, type ApiErrorBody } from "./client";
+
+export type { ApiErrorBody };
 
 export type TableStatus = "FREE" | "OCCUPIED" | "PAID";
 
@@ -22,6 +23,14 @@ export type OrderItem = {
   line_type: "ORIGINAL" | "ADDITION";
   is_voided: boolean;
   void_reason: string | null;
+  print_warning?: string | null;
+};
+
+export type ActivePayment = {
+  account_name: string;
+  amount: string;
+  charged_by: string;
+  charged_at: string;
 };
 
 export type Order = {
@@ -32,25 +41,10 @@ export type Order = {
   delivered: boolean;
   items: OrderItem[];
   total: string;
+  has_pending_print: boolean;
+  print_warning?: string | null;
+  active_payment: ActivePayment | null;
 };
-
-export type ApiErrorBody = { detail?: string | string[] };
-
-async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${BACKEND_API_URL}${path}`, {
-    credentials: "include",
-    headers: { "Content-Type": "application/json" },
-    ...init,
-  });
-
-  const text = await response.text();
-  const data = text ? JSON.parse(text) : undefined;
-
-  if (!response.ok) {
-    throw (data ?? { detail: "Error inesperado." }) as ApiErrorBody;
-  }
-  return data as T;
-}
 
 export function listTables(): Promise<Table[]> {
   return requestJson<Table[]>("/api/mesas");
@@ -160,9 +154,10 @@ export function setDelivered(
   });
 }
 
-export function chargeOrder(orderId: number): Promise<Order> {
+export function chargeOrder(orderId: number, accountId: number): Promise<Order> {
   return requestJson<Order>(`/api/pedidos/${orderId}/cobrar`, {
     method: "POST",
+    body: JSON.stringify({ account_id: accountId }),
   });
 }
 
@@ -170,5 +165,11 @@ export function voidOrder(orderId: number, reason: string): Promise<Order> {
   return requestJson<Order>(`/api/pedidos/${orderId}/anular`, {
     method: "POST",
     body: JSON.stringify({ reason }),
+  });
+}
+
+export function retryPrint(orderId: number): Promise<Order> {
+  return requestJson<Order>(`/api/pedidos/${orderId}/reimprimir`, {
+    method: "POST",
   });
 }

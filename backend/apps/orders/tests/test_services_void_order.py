@@ -41,7 +41,8 @@ class VoidOrderTests(TestCase):
         self.assertEqual(table.status, Table.Status.FREE)
 
     def test_voiding_a_charged_order_is_rejected(self):
-        services.charge_order(self.order, self.admin)
+        self.order.status = Order.Status.CHARGED
+        self.order.save(update_fields=["status"])
         with self.assertRaises(ValidationError):
             services.void_order(self.order, self.admin, "motivo")
 

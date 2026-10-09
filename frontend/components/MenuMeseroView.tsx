@@ -3,6 +3,17 @@
 import { useCallback, useEffect, useState } from "react";
 import { getMenu, type Product, type ApiErrorBody } from "@/lib/api/menu";
 import { subscribeToMenuUpdates } from "@/lib/api/menuSocket";
+import styles from "./MenuMeseroView.module.css";
+
+function groupByCategory(products: Product[]): Array<[string, Product[]]> {
+  const groups = new Map<string, Product[]>();
+  for (const product of products) {
+    const list = groups.get(product.category.name) ?? [];
+    list.push(product);
+    groups.set(product.category.name, list);
+  }
+  return Array.from(groups.entries());
+}
 
 function formatError(error: unknown): string {
   const detail = (error as ApiErrorBody)?.detail;
@@ -37,19 +48,31 @@ export function MenuMeseroView() {
   }, [refresh]);
 
   return (
-    <section>
-      <h1>Menú</h1>
-      <button type="button" onClick={refresh}>
-        Actualizar menú
-      </button>
-      {message && <p role="status">{message}</p>}
-      <ul>
-        {products.map((product) => (
-          <li key={product.id}>
-            {product.name} — {product.category.name} — ${product.price}
-          </li>
-        ))}
-      </ul>
+    <section className={styles.section}>
+      <div className={styles.headerRow}>
+        <h1 className={styles.heading}>Menú</h1>
+        <button type="button" className={styles.refreshButton} onClick={refresh}>
+          Actualizar menú
+        </button>
+      </div>
+      {message && (
+        <p className={styles.message} role="status">
+          {message}
+        </p>
+      )}
+      {groupByCategory(products).map(([categoryName, items]) => (
+        <div className={styles.categoryGroup} key={categoryName}>
+          <span className={styles.categoryLabel}>{categoryName}</span>
+          <ul className={styles.list}>
+            {items.map((product) => (
+              <li key={product.id} className={styles.row}>
+                <span className={styles.name}>{product.name}</span>
+                <span className={styles.price}>${product.price}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
     </section>
   );
 }

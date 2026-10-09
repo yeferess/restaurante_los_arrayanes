@@ -10,6 +10,7 @@ describe("lib/api/auth (T51, RF-1, RF-8, RF-9)", () => {
 
   afterEach(() => {
     global.fetch = originalFetch;
+    document.cookie = "csrftoken=; expires=Thu, 01 Jan 1970 00:00:00 GMT";
     vi.restoreAllMocks();
   });
 
@@ -68,6 +69,20 @@ describe("lib/api/auth (T51, RF-1, RF-8, RF-9)", () => {
     );
   });
 
+  it("logout() sends the csrftoken cookie as an X-CSRFToken header", async () => {
+    document.cookie = "csrftoken=abc123";
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+      new Response(null, { status: 204 })
+    );
+    await logout();
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringContaining("/api/auth/logout"),
+      expect.objectContaining({
+        headers: expect.objectContaining({ "X-CSRFToken": "abc123" }),
+      })
+    );
+  });
+
   it("logout() propagates the API error on failure", async () => {
     mockFetchOnce({ detail: "Sesión expirada por inactividad." }, 401);
     await expect(logout()).rejects.toEqual({ detail: "Sesión expirada por inactividad." });
@@ -98,6 +113,26 @@ describe("lib/api/auth (T51, RF-1, RF-8, RF-9)", () => {
       expect.objectContaining({ method: "POST", credentials: "include" })
     );
     expect(result).toEqual({ expira_en_seg: 1800 });
+  });
+
+  it("heartbeat() sends the csrftoken cookie as an X-CSRFToken header", async () => {
+    document.cookie = "csrftoken=abc123";
+    mockFetchOnce({ expira_en_seg: 1800 });
+    await heartbeat();
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringContaining("/api/auth/heartbeat"),
+      expect.objectContaining({
+        headers: expect.objectContaining({ "X-CSRFToken": "abc123" }),
+      })
+    );
+  });
+
+  it("session() (a GET) never sends an X-CSRFToken header", async () => {
+    document.cookie = "csrftoken=abc123";
+    mockFetchOnce({ id: 1, username: "ana", role: "ADMIN" });
+    await session();
+    const [, init] = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect((init?.headers as Record<string, string> | undefined)?.["X-CSRFToken"]).toBeUndefined();
   });
 
   it("heartbeat() propagates the API error on failure", async () => {

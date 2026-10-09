@@ -3,8 +3,9 @@
 // functions (createAdmin, changeOwnPassword) and the dedicated test suite
 // for this whole module are completed when T55 is formally implemented.
 
-const BACKEND_API_URL =
-  process.env.NEXT_PUBLIC_BACKEND_API_URL ?? "http://127.0.0.1:8000";
+import { requestJson, type ApiErrorBody } from "./client";
+
+export type { ApiErrorBody };
 
 export type MeseroAccount = {
   id: number;
@@ -14,24 +15,6 @@ export type MeseroAccount = {
   created_by: number | null;
   created_at: string;
 };
-
-export type ApiErrorBody = { detail?: string | string[] };
-
-async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${BACKEND_API_URL}${path}`, {
-    credentials: "include",
-    headers: { "Content-Type": "application/json" },
-    ...init,
-  });
-
-  const text = await response.text();
-  const data = text ? JSON.parse(text) : undefined;
-
-  if (!response.ok) {
-    throw (data ?? { detail: "Error inesperado." }) as ApiErrorBody;
-  }
-  return data as T;
-}
 
 export function createMesero(username: string, pin: string): Promise<MeseroAccount> {
   return requestJson<MeseroAccount>("/api/usuarios/meseros", {

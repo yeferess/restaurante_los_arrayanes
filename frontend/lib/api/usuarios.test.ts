@@ -18,6 +18,7 @@ describe("lib/api/usuarios (T55, RF-2/4/5/6/7/10)", () => {
 
   afterEach(() => {
     global.fetch = originalFetch;
+    document.cookie = "csrftoken=; expires=Thu, 01 Jan 1970 00:00:00 GMT";
     vi.restoreAllMocks();
   });
 
@@ -103,6 +104,28 @@ describe("lib/api/usuarios (T55, RF-2/4/5/6/7/10)", () => {
     expect(global.fetch).toHaveBeenCalledWith(
       expect.stringContaining("/api/usuarios/meseros/7/desbloquear"),
       expect.objectContaining({ body: JSON.stringify({ nuevo_pin: "5555" }) })
+    );
+  });
+
+  it("createMesero sends the csrftoken cookie as an X-CSRFToken header", async () => {
+    document.cookie = "csrftoken=abc123";
+    mockOk(
+      {
+        id: 7,
+        username: "carlos",
+        role: "MESERO",
+        is_active: true,
+        created_by: 1,
+        created_at: "2026-01-01T00:00:00Z",
+      },
+      201
+    );
+    await createMesero("carlos", "1234");
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringContaining("/api/usuarios/meseros"),
+      expect.objectContaining({
+        headers: expect.objectContaining({ "X-CSRFToken": "abc123" }),
+      })
     );
   });
 

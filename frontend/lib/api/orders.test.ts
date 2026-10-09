@@ -16,6 +16,7 @@ import {
   setDelivered,
   chargeOrder,
   voidOrder,
+  retryPrint,
 } from "./orders";
 
 describe("lib/api/orders (T62, RF-1 a RF-11)", () => {
@@ -27,6 +28,7 @@ describe("lib/api/orders (T62, RF-1 a RF-11)", () => {
 
   afterEach(() => {
     global.fetch = originalFetch;
+    document.cookie = "csrftoken=; expires=Thu, 01 Jan 1970 00:00:00 GMT";
     vi.restoreAllMocks();
   });
 
@@ -93,6 +95,26 @@ describe("lib/api/orders (T62, RF-1 a RF-11)", () => {
     await expect(createOrder(1)).rejects.toEqual({
       detail: "La mesa no está libre.",
     });
+  });
+
+  it("createOrder sends the csrftoken cookie as an X-CSRFToken header", async () => {
+    document.cookie = "csrftoken=abc123";
+    mockOk({ id: 1, table_number: 1, status: "DRAFT" }, 201);
+    await createOrder(1);
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringContaining("/api/pedidos"),
+      expect.objectContaining({
+        headers: expect.objectContaining({ "X-CSRFToken": "abc123" }),
+      })
+    );
+  });
+
+  it("listTables (a GET) never sends an X-CSRFToken header", async () => {
+    document.cookie = "csrftoken=abc123";
+    mockOk([]);
+    await listTables();
+    const [, init] = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect((init?.headers as Record<string, string>)["X-CSRFToken"]).toBeUndefined();
   });
 
   it("listMyOrders gets /api/pedidos/mios", async () => {
@@ -230,18 +252,68 @@ describe("lib/api/orders (T62, RF-1 a RF-11)", () => {
     );
   });
 
-  it("chargeOrder posts to /api/pedidos/{id}/cobrar and propagates a 409", async () => {
-    mockOk({ id: 7, status: "CHARGED" });
-    await chargeOrder(7);
+  it("chargeOrder posts account_id to /api/pedidos/{id}/cobrar (005-cobro) and propagates a 409", async () => {
+    mockOk({
+      id: 7,
+      status: "CHARGED",
+      active_payment: {
+        account_name: "Efectivo",
+        amount: "9.00",
+        charged_by: "admin1",
+        charged_at: "2026-03-10T20:15:00Z",
+      },
+    });
+    const result = await chargeOrder(7, 3);
     expect(global.fetch).toHaveBeenCalledWith(
       expect.stringContaining("/api/pedidos/7/cobrar"),
-      expect.objectContaining({ method: "POST" })
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ account_id: 3 }),
+      })
     );
+    expect(result.active_payment?.account_name).toBe("Efectivo");
 
     mockError({ detail: "La mesa no está ocupada." }, 409);
-    await expect(chargeOrder(7)).rejects.toEqual({
+    await expect(chargeOrder(7, 3)).rejects.toEqual({
       detail: "La mesa no está ocupada.",
     });
+  });
+
+  it("retryPrint posts to /api/pedidos/{id}/reimprimir (T32, RF-10) and propagates a 409", async () => {
+    mockOk({
+      id: 7,
+      status: "IN_PROGRESS",
+      has_pending_print: false,
+      print_warning: null,
+    });
+    const result = await retryPrint(7);
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringContaining("/api/pedidos/7/reimprimir"),
+      expect.objectContaining({ method: "POST" })
+    );
+    expect(result.has_pending_print).toBe(false);
+
+    mockError(
+      { detail: "Este pedido ya no admite reintentos de impresión." },
+      409
+    );
+    await expect(retryPrint(7)).rejects.toEqual({
+      detail: "Este pedido ya no admite reintentos de impresión.",
+    });
+  });
+
+  it("sendOrder/addItem/voidItem responses carry print_warning through", async () => {
+    mockOk({ id: 7, status: "IN_PROGRESS", print_warning: "Error al imprimir." });
+    const sent = await sendOrder(7);
+    expect(sent.print_warning).toBe("Error al imprimir.");
+
+    mockOk({ id: 1, name: "Limonada", print_warning: null }, 201);
+    const added = await addItem(7, { productId: 3 });
+    expect(added.print_warning).toBeNull();
+
+    mockOk({ id: 1, is_voided: true, print_warning: null });
+    const voided = await voidItem(7, 1, "Pedido por error");
+    expect(voided.print_warning).toBeNull();
   });
 
   it("voidOrder posts the reason to /api/pedidos/{id}/anular", async () => {

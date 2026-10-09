@@ -176,9 +176,9 @@ class AddItemView(APIView):
             )
         except DjangoValidationError as exc:
             return Response({"detail": exc.messages}, status=_item_status_for(exc))
-        return Response(
-            OrderItemSerializer(item).data, status=status.HTTP_201_CREATED
-        )
+        data = OrderItemSerializer(item).data
+        data["print_warning"] = getattr(order, "print_warning", None)
+        return Response(data, status=status.HTTP_201_CREATED)
 
 
 class RemoveItemView(APIView):
@@ -231,7 +231,9 @@ class VoidItemView(APIView):
             return Response(
                 {"detail": exc.messages}, status=status.HTTP_409_CONFLICT
             )
-        return Response(OrderItemSerializer(item).data)
+        data = OrderItemSerializer(item).data
+        data["print_warning"] = getattr(order, "print_warning", None)
+        return Response(data)
 
 
 class SendOrderView(APIView):
@@ -249,26 +251,42 @@ class SendOrderView(APIView):
             return Response(
                 {"detail": exc.messages}, status=status.HTTP_409_CONFLICT
             )
-        return Response(OrderSerializer(order).data)
+        data = OrderSerializer(order).data
+        data["print_warning"] = getattr(order, "print_warning", None)
+        return Response(data)
 
 
 class ChargeOrderView(APIView):
-    """POST /api/pedidos/{id}/cobrar (RF-9). Admin-only."""
+    """POST /api/pedidos/{id}/cobrar (005-cobro, RF-1, RF-3, RF-5).
+    Admin-only."""
 
     permission_classes = [IsAdmin]
 
     def post(self, request, pk):
+        from apps.payments.models import PaymentAccount
+        from apps.payments.services import charge_order
+
         try:
             order = Order.objects.get(pk=pk)
         except Order.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
+
         try:
-            services.charge_order(order, request.user)
+            account = PaymentAccount.objects.get(pk=request.data.get("account_id"))
+        except (PaymentAccount.DoesNotExist, ValueError, TypeError):
+            return Response(
+                {"detail": "account_id es obligatorio y debe ser una cuenta válida."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            charge_order(order, request.user, account)
         except DjangoValidationError as exc:
             return Response(
                 {"detail": exc.messages}, status=status.HTTP_409_CONFLICT
             )
-        return Response(OrderSerializer(order).data)
+        data = OrderSerializer(order).data
+        return Response(data)
 
 
 class VoidOrderView(APIView):

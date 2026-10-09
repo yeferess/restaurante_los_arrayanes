@@ -6,6 +6,7 @@ from rest_framework.test import APITestCase
 
 from apps.menu.models import Category, Product
 from apps.orders import services
+from apps.orders.models import Order
 
 User = get_user_model()
 
@@ -76,10 +77,8 @@ class AddItemViewTests(APITestCase):
 
     def test_adding_to_a_charged_order_returns_409(self):
         self._login()
-        admin = User.objects.create_user(
-            username="admin_add_view", password="Sup3rSecreta", role=User.Role.ADMIN
-        )
-        services.charge_order(self.order, admin)
+        self.order.status = Order.Status.CHARGED
+        self.order.save(update_fields=["status"])
         response = self.client.post(
             self._url(self.order.id), {"product_id": self.product.pk}, format="json"
         )

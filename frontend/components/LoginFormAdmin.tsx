@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { login, type ApiError } from "@/lib/api/auth";
+import styles from "./LoginFormAdmin.module.css";
 
 export function LoginFormAdmin() {
   const router = useRouter();
@@ -26,31 +27,47 @@ export function LoginFormAdmin() {
   }
 
   return (
-    <form onSubmit={handleSubmit} aria-label="Ingreso de administrador">
-      <label htmlFor="admin-username">Usuario</label>
-      <input
-        id="admin-username"
-        name="username"
-        value={username}
-        onChange={(event) => setUsername(event.target.value)}
-        required
-      />
+    <form className={styles.form} onSubmit={handleSubmit} aria-label="Ingreso de administrador">
+      <div className={styles.field}>
+        <label className={styles.label} htmlFor="admin-username">
+          Usuario
+        </label>
+        <input
+          id="admin-username"
+          className={styles.input}
+          name="username"
+          value={username}
+          onChange={(event) => setUsername(event.target.value)}
+          autoComplete="username"
+          required
+        />
+      </div>
 
-      <label htmlFor="admin-password">Contraseña</label>
-      <input
-        id="admin-password"
-        name="password"
-        type="password"
-        value={password}
-        onChange={(event) => setPassword(event.target.value)}
-        required
-      />
+      <div className={styles.field}>
+        <label className={styles.label} htmlFor="admin-password">
+          Contraseña
+        </label>
+        <input
+          id="admin-password"
+          className={styles.input}
+          name="password"
+          type="password"
+          value={password}
+          onChange={(event) => setPassword(event.target.value)}
+          autoComplete="current-password"
+          required
+        />
+      </div>
 
-      <button type="submit" disabled={isSubmitting}>
+      <button type="submit" className={styles.submit} disabled={isSubmitting}>
         Ingresar
       </button>
 
-      {error && <p role="alert">{error}</p>}
+      {error && (
+        <p className={styles.error} role="alert">
+          {error}
+        </p>
+      )}
     </form>
   );
 }

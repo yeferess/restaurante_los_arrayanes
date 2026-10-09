@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { createAdmin, changeOwnPassword, type ApiErrorBody } from "@/lib/api/usuarios";
+import styles from "./AdminManagement.module.css";
 
 function formatError(error: unknown): string {
   const detail = (error as ApiErrorBody)?.detail;
@@ -28,25 +29,41 @@ function CreateAdminForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit}>
-      <h2>Crear admin adicional</h2>
-      <label htmlFor="create-admin-username">Nuevo usuario admin</label>
-      <input
-        id="create-admin-username"
-        value={username}
-        onChange={(e) => setUsername(e.target.value)}
-        required
-      />
-      <label htmlFor="create-admin-password">Nueva contraseña admin</label>
-      <input
-        id="create-admin-password"
-        type="password"
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-        required
-      />
-      <button type="submit">Crear admin</button>
-      {message && <p role="status">{message}</p>}
+    <form className={styles.card} onSubmit={handleSubmit}>
+      <h2 className={styles.cardTitle}>Crear admin adicional</h2>
+      <div className={styles.field}>
+        <label className={styles.label} htmlFor="create-admin-username">
+          Nuevo usuario admin
+        </label>
+        <input
+          id="create-admin-username"
+          className={styles.input}
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+          required
+        />
+      </div>
+      <div className={styles.field}>
+        <label className={styles.label} htmlFor="create-admin-password">
+          Nueva contraseña admin
+        </label>
+        <input
+          id="create-admin-password"
+          className={styles.input}
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+        />
+      </div>
+      <button type="submit" className={styles.submitButton}>
+        Crear admin
+      </button>
+      {message && (
+        <p className={styles.message} role="status">
+          {message}
+        </p>
+      )}
     </form>
   );
 }
@@ -72,34 +89,55 @@ function ChangeOwnPasswordForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit}>
-      <h2>Cambiar mi contraseña</h2>
-      <label htmlFor="current-password">Contraseña actual</label>
-      <input
-        id="current-password"
-        type="password"
-        value={current}
-        onChange={(e) => setCurrent(e.target.value)}
-        required
-      />
-      <label htmlFor="new-password">Contraseña nueva</label>
-      <input
-        id="new-password"
-        type="password"
-        value={nueva}
-        onChange={(e) => setNueva(e.target.value)}
-        required
-      />
-      <label htmlFor="confirm-new-password">Confirmar contraseña nueva</label>
-      <input
-        id="confirm-new-password"
-        type="password"
-        value={confirmacion}
-        onChange={(e) => setConfirmacion(e.target.value)}
-        required
-      />
-      <button type="submit">Cambiar contraseña</button>
-      {message && <p role="status">{message}</p>}
+    <form className={styles.card} onSubmit={handleSubmit}>
+      <h2 className={styles.cardTitle}>Cambiar mi contraseña</h2>
+      <div className={styles.field}>
+        <label className={styles.label} htmlFor="current-password">
+          Contraseña actual
+        </label>
+        <input
+          id="current-password"
+          className={styles.input}
+          type="password"
+          value={current}
+          onChange={(e) => setCurrent(e.target.value)}
+          required
+        />
+      </div>
+      <div className={styles.field}>
+        <label className={styles.label} htmlFor="new-password">
+          Contraseña nueva
+        </label>
+        <input
+          id="new-password"
+          className={styles.input}
+          type="password"
+          value={nueva}
+          onChange={(e) => setNueva(e.target.value)}
+          required
+        />
+      </div>
+      <div className={styles.field}>
+        <label className={styles.label} htmlFor="confirm-new-password">
+          Confirmar contraseña nueva
+        </label>
+        <input
+          id="confirm-new-password"
+          className={styles.input}
+          type="password"
+          value={confirmacion}
+          onChange={(e) => setConfirmacion(e.target.value)}
+          required
+        />
+      </div>
+      <button type="submit" className={styles.submitButton}>
+        Cambiar contraseña
+      </button>
+      {message && (
+        <p className={styles.message} role="status">
+          {message}
+        </p>
+      )}
     </form>
   );
 }
@@ -113,9 +151,11 @@ function ChangeOwnPasswordForm() {
 export function AdminManagement() {
   return (
     <section>
-      <h1>Gestión de administradores</h1>
-      <CreateAdminForm />
-      <ChangeOwnPasswordForm />
+      <h1 className={styles.heading}>Gestión de administradores</h1>
+      <div className={styles.grid}>
+        <CreateAdminForm />
+        <ChangeOwnPasswordForm />
+      </div>
     </section>
   );
 }

@@ -7,9 +7,15 @@ vi.mock("@/lib/api/orders", () => ({
   listMyOrders: vi.fn(),
   setDelivered: vi.fn(),
   releaseTable: vi.fn(),
+  retryPrint: vi.fn(),
 }));
 
-import { listMyOrders, setDelivered, releaseTable } from "@/lib/api/orders";
+import {
+  listMyOrders,
+  setDelivered,
+  releaseTable,
+  retryPrint,
+} from "@/lib/api/orders";
 
 const DRAFT_ORDER = {
   id: 41,
@@ -19,6 +25,7 @@ const DRAFT_ORDER = {
   delivered: false,
   items: [],
   total: "12.00",
+  has_pending_print: false,
 };
 
 const CHARGED_ORDER = {
@@ -29,6 +36,18 @@ const CHARGED_ORDER = {
   delivered: true,
   items: [],
   total: "20.00",
+  has_pending_print: false,
+};
+
+const UNPRINTED_ORDER = {
+  id: 43,
+  table_number: 3,
+  waiter_id: 1,
+  status: "IN_PROGRESS" as const,
+  delivered: false,
+  items: [],
+  total: "15.00",
+  has_pending_print: true,
 };
 
 describe("MyOrdersList (T67, RF-8/10)", () => {
@@ -36,6 +55,7 @@ describe("MyOrdersList (T67, RF-8/10)", () => {
     vi.mocked(listMyOrders).mockReset();
     vi.mocked(setDelivered).mockReset();
     vi.mocked(releaseTable).mockReset();
+    vi.mocked(retryPrint).mockReset();
     vi.mocked(listMyOrders).mockResolvedValue([DRAFT_ORDER, CHARGED_ORDER]);
   });
 
@@ -43,6 +63,15 @@ describe("MyOrdersList (T67, RF-8/10)", () => {
     render(<MyOrdersList />);
     expect(await screen.findByText(/mesa 1/i)).toBeInTheDocument();
     expect(screen.getByText(/mesa 2/i)).toBeInTheDocument();
+  });
+
+  it("links each order to its detail/builder screen", async () => {
+    render(<MyOrdersList />);
+    await screen.findByText(/mesa 1/i);
+    expect(screen.getByRole("link", { name: /pedido 41/i })).toHaveAttribute(
+      "href",
+      "/mesero/pedidos/41"
+    );
   });
 
   it("toggles the delivered flag", async () => {
@@ -83,5 +112,69 @@ describe("MyOrdersList (T67, RF-8/10)", () => {
     await user.click(screen.getByRole("button", { name: /liberar mesa/i }));
 
     expect(await screen.findByText("La mesa no está pagada.")).toBeInTheDocument();
+  });
+
+  it("shows a 'not printed' badge and retry button when has_pending_print is true (T33, RF-9/10)", async () => {
+    vi.mocked(listMyOrders).mockResolvedValue([UNPRINTED_ORDER]);
+    render(<MyOrdersList />);
+    expect(await screen.findByText(/no impreso en cocina/i)).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /reintentar impresión/i })
+    ).toBeInTheDocument();
+  });
+
+  it("shows neither the badge nor the retry button when has_pending_print is false", async () => {
+    render(<MyOrdersList />);
+    await screen.findByText(/mesa 1/i);
+    expect(screen.queryByText(/no impreso en cocina/i)).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /reintentar impresión/i })
+    ).not.toBeInTheDocument();
+  });
+
+  it("hides the retry button once the order is charged, even with a pending ticket", async () => {
+    vi.mocked(listMyOrders).mockResolvedValue([
+      { ...CHARGED_ORDER, has_pending_print: true },
+    ]);
+    render(<MyOrdersList />);
+    await screen.findByText(/mesa 2/i);
+    expect(
+      screen.queryByRole("button", { name: /reintentar impresión/i })
+    ).not.toBeInTheDocument();
+  });
+
+  it("retries printing and refreshes the indicator", async () => {
+    vi.mocked(listMyOrders).mockResolvedValue([UNPRINTED_ORDER]);
+    vi.mocked(retryPrint).mockResolvedValue({
+      ...UNPRINTED_ORDER,
+      has_pending_print: false,
+      print_warning: null,
+    });
+    const user = userEvent.setup();
+    render(<MyOrdersList />);
+    await screen.findByText(/no impreso en cocina/i);
+
+    await user.click(screen.getByRole("button", { name: /reintentar impresión/i }));
+
+    await waitFor(() => expect(retryPrint).toHaveBeenCalledWith(43));
+    await waitFor(() =>
+      expect(screen.queryByText(/no impreso en cocina/i)).not.toBeInTheDocument()
+    );
+  });
+
+  it("shows the error when a retry fails again", async () => {
+    vi.mocked(listMyOrders).mockResolvedValue([UNPRINTED_ORDER]);
+    vi.mocked(retryPrint).mockRejectedValue({
+      detail: "Impresora de cocina no detectada.",
+    });
+    const user = userEvent.setup();
+    render(<MyOrdersList />);
+    await screen.findByText(/no impreso en cocina/i);
+
+    await user.click(screen.getByRole("button", { name: /reintentar impresión/i }));
+
+    expect(
+      await screen.findByText("Impresora de cocina no detectada.")
+    ).toBeInTheDocument();
   });
 });

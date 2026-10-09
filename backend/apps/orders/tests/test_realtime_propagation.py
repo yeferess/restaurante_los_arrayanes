@@ -93,17 +93,3 @@ class RealTimeOrdersPropagationTests(TestCase):
         self.assertEqual(response, {"type": "pedidos.actualizado"})
         self.assertTrue(await communicator.receive_nothing(timeout=0.3))
         await communicator.disconnect()
-
-    async def test_charging_does_not_notify(self):
-        waiter = await _create_user("mesero_rt_charge", User.Role.MESERO)
-        admin_actor = await _create_user(
-            "admin_rt_charge", User.Role.ADMIN, password="Sup3rSecreta"
-        )
-        await database_sync_to_async(services.resize_tables)(1)
-        order = await database_sync_to_async(services.create_order)(waiter, 1)
-
-        communicator = await self._connected_admin_communicator()
-        await database_sync_to_async(services.charge_order)(order, admin_actor)
-
-        self.assertTrue(await communicator.receive_nothing(timeout=0.3))
-        await communicator.disconnect()

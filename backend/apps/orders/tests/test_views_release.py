@@ -3,6 +3,7 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from apps.orders import services
+from apps.orders.models import Table
 
 User = get_user_model()
 
@@ -22,7 +23,9 @@ class ReleaseTableViewTests(APITestCase):
             username="admin_rel_view", password="Sup3rSecreta", role=User.Role.ADMIN
         )
         self.order = services.create_order(self.waiter, table_number=1)
-        services.charge_order(self.order, self.admin)
+        table = Table.objects.get(number=1)
+        table.status = Table.Status.PAID
+        table.save(update_fields=["status"])
 
     def _url(self, table_number):
         return f"/api/mesas/{table_number}/liberar"

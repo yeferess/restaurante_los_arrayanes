@@ -31,6 +31,6 @@ import OrderPage from "./page";
 describe("/mesero/pedidos/[id] page (T66)", () => {
   it("renders the order builder for the order in the route", async () => {
     render(<OrderPage />);
-    expect(await screen.findByText(/pedido 41/i)).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: /pedido 41/i })).toBeInTheDocument();
   });
 });

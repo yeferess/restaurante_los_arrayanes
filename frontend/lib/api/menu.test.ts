@@ -21,6 +21,7 @@ describe("lib/api/menu (T36, RF-1/2/3/4/5/7)", () => {
 
   afterEach(() => {
     global.fetch = originalFetch;
+    document.cookie = "csrftoken=; expires=Thu, 01 Jan 1970 00:00:00 GMT";
     vi.restoreAllMocks();
   });
 
@@ -203,6 +204,26 @@ describe("lib/api/menu (T36, RF-1/2/3/4/5/7)", () => {
       expect.stringContaining("/api/menu/productos/1"),
       expect.objectContaining({ method: "DELETE" })
     );
+  });
+
+  it("createCategory sends the csrftoken cookie as an X-CSRFToken header", async () => {
+    document.cookie = "csrftoken=abc123";
+    mockOk({ id: 1, name: "Bebidas" }, 201);
+    await createCategory("Bebidas");
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringContaining("/api/menu/categorias"),
+      expect.objectContaining({
+        headers: expect.objectContaining({ "X-CSRFToken": "abc123" }),
+      })
+    );
+  });
+
+  it("listCategories (a GET) never sends an X-CSRFToken header", async () => {
+    document.cookie = "csrftoken=abc123";
+    mockOk([]);
+    await listCategories();
+    const [, init] = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect((init?.headers as Record<string, string>)["X-CSRFToken"]).toBeUndefined();
   });
 
   it("getMenu gets /api/menu", async () => {

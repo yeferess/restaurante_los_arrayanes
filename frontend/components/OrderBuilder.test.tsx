@@ -147,7 +147,7 @@ describe("OrderBuilder (T66, RF-3/4/5/6/7)", () => {
     const user = userEvent.setup();
     render(<OrderBuilder orderId={41} />);
 
-    expect(await screen.findByText(/limonada/i, { selector: "li" })).toBeInTheDocument();
+    expect(await screen.findByText(/limonada/i, { selector: "span" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: /anular/i }));
 
     await waitFor(() =>
@@ -184,5 +184,79 @@ describe("OrderBuilder (T66, RF-3/4/5/6/7)", () => {
     expect(
       await screen.findByText("Este pedido no admite agregar ítems.")
     ).toBeInTheDocument();
+  });
+
+  it("shows a print warning immediately when sending the order (T35, RF-9)", async () => {
+    vi.mocked(sendOrder).mockResolvedValue({
+      ...DRAFT_ORDER,
+      status: "IN_PROGRESS",
+      print_warning: "Impresora de cocina no detectada.",
+    });
+    const user = userEvent.setup();
+    render(<OrderBuilder orderId={41} />);
+    await user.click(await screen.findByRole("button", { name: /enviar pedido/i }));
+
+    expect(
+      await screen.findByText("Impresora de cocina no detectada.")
+    ).toBeInTheDocument();
+  });
+
+  it("shows a print warning immediately after adding an item", async () => {
+    vi.mocked(addItem).mockResolvedValue({
+      id: 200,
+      order_id: 41,
+      name: "Limonada",
+      unit_price: "4.50",
+      quantity: 1,
+      note: "",
+      line_type: "ORIGINAL",
+      is_voided: false,
+      void_reason: null,
+      print_warning: "Error al imprimir el ticket de cocina.",
+    });
+    const user = userEvent.setup();
+    render(<OrderBuilder orderId={41} />);
+    await screen.findByLabelText(/producto/i);
+
+    await user.click(screen.getByRole("button", { name: /^agregar$/i }));
+
+    expect(
+      await screen.findByText("Error al imprimir el ticket de cocina.")
+    ).toBeInTheDocument();
+  });
+
+  it("shows a print warning immediately after voiding an item", async () => {
+    vi.mocked(getOrder).mockResolvedValue(IN_PROGRESS_ORDER);
+    vi.mocked(voidItem).mockResolvedValue({
+      ...IN_PROGRESS_ORDER.items[0],
+      is_voided: true,
+      print_warning: "Impresora de cocina no detectada.",
+    });
+    vi.spyOn(window, "prompt").mockReturnValue("El cliente cambió de opinión");
+    const user = userEvent.setup();
+    render(<OrderBuilder orderId={41} />);
+
+    expect(
+      await screen.findByText(/limonada/i, { selector: "span" })
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /anular/i }));
+
+    expect(
+      await screen.findByText("Impresora de cocina no detectada.")
+    ).toBeInTheDocument();
+  });
+
+  it("shows no message when there is no print warning", async () => {
+    vi.mocked(sendOrder).mockResolvedValue({
+      ...DRAFT_ORDER,
+      status: "IN_PROGRESS",
+      print_warning: null,
+    });
+    const user = userEvent.setup();
+    render(<OrderBuilder orderId={41} />);
+    await user.click(await screen.findByRole("button", { name: /enviar pedido/i }));
+
+    await waitFor(() => expect(sendOrder).toHaveBeenCalled());
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 });

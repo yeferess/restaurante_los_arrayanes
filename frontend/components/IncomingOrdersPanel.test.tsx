@@ -11,6 +11,17 @@ vi.mock("@/lib/api/orders", () => ({
 vi.mock("@/lib/api/ordersSocket", () => ({
   subscribeToOrderUpdates: vi.fn(),
 }));
+vi.mock("./ChargeOrderModal", () => ({
+  ChargeOrderModal: ({ order, onClose, onCharged }: any) => (
+    <div data-testid="charge-modal">
+      <span>Modal para pedido {order.id}</span>
+      <button onClick={onClose}>cerrar-modal</button>
+      <button onClick={() => onCharged({ ...order, status: "CHARGED" })}>
+        simular-cobro-exitoso
+      </button>
+    </div>
+  ),
+}));
 
 import { listIncomingOrders, chargeOrder, voidOrder } from "@/lib/api/orders";
 import { subscribeToOrderUpdates } from "@/lib/api/ordersSocket";
@@ -23,6 +34,7 @@ const ORDER_1 = {
   delivered: false,
   items: [],
   total: "12.00",
+  has_pending_print: false,
 };
 
 describe("IncomingOrdersPanel (T68, soporte RF-9/11)", () => {
@@ -73,26 +85,44 @@ describe("IncomingOrdersPanel (T68, soporte RF-9/11)", () => {
     expect(closeMock).toHaveBeenCalledTimes(1);
   });
 
-  it("charges an order", async () => {
-    vi.mocked(chargeOrder).mockResolvedValue({ ...ORDER_1, status: "CHARGED" });
+  it("opens the charge modal for the clicked order (T28, RF-1)", async () => {
     const user = userEvent.setup();
     render(<IncomingOrdersPanel />);
     await screen.findByText(/mesa 1/i);
 
-    await user.click(screen.getByRole("button", { name: /cobrar/i }));
+    await user.click(screen.getByRole("button", { name: /^cobrar$/i }));
 
-    await waitFor(() => expect(chargeOrder).toHaveBeenCalledWith(41));
+    expect(await screen.findByTestId("charge-modal")).toBeInTheDocument();
+    expect(screen.getByText(/modal para pedido 41/i)).toBeInTheDocument();
   });
 
-  it("shows the 409 error when charging an order that isn't occupied", async () => {
-    vi.mocked(chargeOrder).mockRejectedValue({ detail: "La mesa no está ocupada." });
+  it("closes the charge modal without refetching on cancel", async () => {
     const user = userEvent.setup();
     render(<IncomingOrdersPanel />);
     await screen.findByText(/mesa 1/i);
+    await user.click(screen.getByRole("button", { name: /^cobrar$/i }));
+    await screen.findByTestId("charge-modal");
+    vi.mocked(listIncomingOrders).mockClear();
 
-    await user.click(screen.getByRole("button", { name: /cobrar/i }));
+    await user.click(screen.getByText("cerrar-modal"));
 
-    expect(await screen.findByText("La mesa no está ocupada.")).toBeInTheDocument();
+    expect(screen.queryByTestId("charge-modal")).not.toBeInTheDocument();
+    expect(listIncomingOrders).not.toHaveBeenCalled();
+  });
+
+  it("refetches and closes the modal after a successful charge", async () => {
+    const user = userEvent.setup();
+    render(<IncomingOrdersPanel />);
+    await screen.findByText(/mesa 1/i);
+    await user.click(screen.getByRole("button", { name: /^cobrar$/i }));
+    await screen.findByTestId("charge-modal");
+    vi.mocked(listIncomingOrders).mockClear();
+    vi.mocked(listIncomingOrders).mockResolvedValue([]);
+
+    await user.click(screen.getByText("simular-cobro-exitoso"));
+
+    await waitFor(() => expect(listIncomingOrders).toHaveBeenCalledTimes(1));
+    expect(screen.queryByTestId("charge-modal")).not.toBeInTheDocument();
   });
 
   it("voids a full order with a reason", async () => {
@@ -118,5 +148,22 @@ describe("IncomingOrdersPanel (T68, soporte RF-9/11)", () => {
     await user.click(screen.getByRole("button", { name: /anular pedido/i }));
 
     expect(voidOrder).not.toHaveBeenCalled();
+  });
+
+  it("shows a read-only 'not printed' badge when has_pending_print is true (T34, RF-10)", async () => {
+    vi.mocked(listIncomingOrders).mockResolvedValue([
+      { ...ORDER_1, has_pending_print: true },
+    ]);
+    render(<IncomingOrdersPanel />);
+    expect(await screen.findByText(/no impreso en cocina/i)).toBeInTheDocument();
+  });
+
+  it("shows no badge and no retry control when has_pending_print is false", async () => {
+    render(<IncomingOrdersPanel />);
+    await screen.findByText(/mesa 1/i);
+    expect(screen.queryByText(/no impreso en cocina/i)).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /reintentar/i })
+    ).not.toBeInTheDocument();
   });
 });

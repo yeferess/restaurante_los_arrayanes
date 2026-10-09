@@ -1,8 +1,11 @@
+from decimal import Decimal
+
 from django.contrib.auth import get_user_model
 from rest_framework import status
 from rest_framework.test import APITestCase
 
 from apps.orders import services
+from apps.payments.models import PaymentAccount
 
 User = get_user_model()
 
@@ -55,8 +58,15 @@ class VoidOrderViewTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_voiding_a_charged_order_returns_409(self):
+        services.add_item(self.order, name="Limonada", price=Decimal("4.50"))
+        services.send_order(self.order)
+        account = PaymentAccount.objects.get(name="Efectivo")
         self._login_admin()
-        self.client.post(f"/api/pedidos/{self.order.id}/cobrar")
+        self.client.post(
+            f"/api/pedidos/{self.order.id}/cobrar",
+            {"account_id": account.id},
+            format="json",
+        )
         response = self.client.post(
             self._url(self.order.id), {"reason": "motivo"}, format="json"
         )

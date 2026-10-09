@@ -1,7 +1,8 @@
 // Menu API client (T36 — RF-1, RF-2, RF-3, RF-4, RF-5, RF-7).
 
-const BACKEND_API_URL =
-  process.env.NEXT_PUBLIC_BACKEND_API_URL ?? "http://127.0.0.1:8000";
+import { requestJson, type ApiErrorBody } from "./client";
+
+export type { ApiErrorBody };
 
 export type Category = {
   id: number;
@@ -15,24 +16,6 @@ export type Product = {
   price: string;
   is_available: boolean;
 };
-
-export type ApiErrorBody = { detail?: string | string[] };
-
-async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${BACKEND_API_URL}${path}`, {
-    credentials: "include",
-    headers: { "Content-Type": "application/json" },
-    ...init,
-  });
-
-  const text = await response.text();
-  const data = text ? JSON.parse(text) : undefined;
-
-  if (!response.ok) {
-    throw (data ?? { detail: "Error inesperado." }) as ApiErrorBody;
-  }
-  return data as T;
-}
 
 export function listCategories(): Promise<Category[]> {
   return requestJson<Category[]>("/api/menu/categorias");

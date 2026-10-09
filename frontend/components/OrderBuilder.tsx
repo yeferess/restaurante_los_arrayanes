@@ -13,6 +13,14 @@ import {
   type ApiErrorBody,
 } from "@/lib/api/orders";
 import { getMenu, type Product } from "@/lib/api/menu";
+import styles from "./OrderBuilder.module.css";
+
+const STATUS_LABEL: Record<Order["status"], string> = {
+  DRAFT: "Borrador",
+  IN_PROGRESS: "En preparación",
+  CHARGED: "Cobrado",
+  VOIDED: "Anulado",
+};
 
 function formatError(error: unknown): string {
   const detail = (error as ApiErrorBody)?.detail;
@@ -60,25 +68,27 @@ export function OrderBuilder({ orderId }: { orderId: number }) {
     event.preventDefault();
     setMessage(null);
     try {
-      if (mode === "catalog") {
-        await addItem(orderId, {
-          productId: Number(productId),
-          quantity: Number(quantity),
-          note: note || undefined,
-        });
-      } else {
-        await addItem(orderId, {
-          name: offMenuName,
-          price: Number(offMenuPrice),
-          quantity: Number(quantity),
-          note: note || undefined,
-        });
-      }
+      const item =
+        mode === "catalog"
+          ? await addItem(orderId, {
+              productId: Number(productId),
+              quantity: Number(quantity),
+              note: note || undefined,
+            })
+          : await addItem(orderId, {
+              name: offMenuName,
+              price: Number(offMenuPrice),
+              quantity: Number(quantity),
+              note: note || undefined,
+            });
       setOffMenuName("");
       setOffMenuPrice("");
       setQuantity("1");
       setNote("");
       await refresh();
+      if (item.print_warning) {
+        setMessage(item.print_warning);
+      }
     } catch (error) {
       setMessage(formatError(error));
     }
@@ -89,6 +99,9 @@ export function OrderBuilder({ orderId }: { orderId: number }) {
     try {
       const updated = await sendOrder(orderId);
       setOrder(updated);
+      if (updated.print_warning) {
+        setMessage(updated.print_warning);
+      }
     } catch (error) {
       setMessage(formatError(error));
     }
@@ -99,8 +112,11 @@ export function OrderBuilder({ orderId }: { orderId: number }) {
     if (!reason) return;
     setMessage(null);
     try {
-      await voidItem(orderId, itemId, reason);
+      const item = await voidItem(orderId, itemId, reason);
       await refresh();
+      if (item.print_warning) {
+        setMessage(item.print_warning);
+      }
     } catch (error) {
       setMessage(formatError(error));
     }
@@ -125,52 +141,86 @@ export function OrderBuilder({ orderId }: { orderId: number }) {
   }
 
   return (
-    <section>
-      <h1>
-        Pedido {order.id} — Mesa {order.table_number}
-      </h1>
-      {message && <p role="status">{message}</p>}
+    <section className={styles.section}>
+      <div>
+        <div className={styles.header}>
+          <h1 className={styles.heading}>
+            Pedido <span className={styles.orderId}>{order.id}</span>
+          </h1>
+          <span className={styles.table}>Mesa {order.table_number}</span>
+        </div>
+        <span className={styles.badge}>{STATUS_LABEL[order.status]}</span>
+      </div>
 
-      <ul>
-        {order.items.map((item) => (
-          <li key={item.id}>
-            {item.quantity}x {item.name} — ${item.unit_price}
-            {item.note && <span> ({item.note})</span>}
-            {item.is_voided && <span> [anulado]</span>}
-            {!item.is_voided && order.status === "IN_PROGRESS" && (
-              <button type="button" onClick={() => handleVoidItem(item.id)}>
-                Anular
-              </button>
-            )}
-          </li>
-        ))}
-      </ul>
+      {message && (
+        <p className={styles.message} role="status">
+          {message}
+        </p>
+      )}
+
+      <div className={styles.itemsCard}>
+        {order.items.length === 0 ? (
+          <p className={styles.emptyItems}>Todavía no agregaste ningún ítem.</p>
+        ) : (
+          <ul className={styles.itemsList}>
+            {order.items.map((item) => (
+              <li
+                key={item.id}
+                className={item.is_voided ? `${styles.item} ${styles.itemVoided}` : styles.item}
+              >
+                <div className={styles.itemInfo}>
+                  <span className={styles.itemLine}>
+                    <span className={styles.itemQty}>{item.quantity}x</span> {item.name} — $
+                    {item.unit_price}
+                  </span>
+                  {item.note && <span className={styles.itemNote}>{item.note}</span>}
+                  {item.is_voided && <span className={styles.itemVoidedTag}>Anulado</span>}
+                </div>
+                {!item.is_voided && order.status === "IN_PROGRESS" && (
+                  <button
+                    type="button"
+                    className={styles.voidButton}
+                    onClick={() => handleVoidItem(item.id)}
+                  >
+                    Anular
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
 
       {(order.status === "DRAFT" || order.status === "IN_PROGRESS") && (
-        <form onSubmit={handleAddItem}>
-          <h2>Agregar ítem</h2>
-          <label>
-            <input
-              type="radio"
-              checked={mode === "catalog"}
-              onChange={() => setMode("catalog")}
-            />
-            Del menú
-          </label>
-          <label>
-            <input
-              type="radio"
-              checked={mode === "off-menu"}
-              onChange={() => setMode("off-menu")}
-            />
-            Fuera de carta
-          </label>
+        <form className={styles.card} onSubmit={handleAddItem}>
+          <h2 className={styles.cardTitle}>Agregar ítem</h2>
+          <div className={styles.modeRow}>
+            <label className={styles.modeLabel}>
+              <input
+                type="radio"
+                checked={mode === "catalog"}
+                onChange={() => setMode("catalog")}
+              />
+              Del menú
+            </label>
+            <label className={styles.modeLabel}>
+              <input
+                type="radio"
+                checked={mode === "off-menu"}
+                onChange={() => setMode("off-menu")}
+              />
+              Fuera de carta
+            </label>
+          </div>
 
           {mode === "catalog" ? (
-            <>
-              <label htmlFor="product-select">Producto</label>
+            <div className={styles.field}>
+              <label className={styles.label} htmlFor="product-select">
+                Producto
+              </label>
               <select
                 id="product-select"
+                className={styles.select}
                 value={productId}
                 onChange={(event) => setProductId(event.target.value)}
               >
@@ -180,69 +230,99 @@ export function OrderBuilder({ orderId }: { orderId: number }) {
                   </option>
                 ))}
               </select>
-            </>
+            </div>
           ) : (
-            <>
-              <label htmlFor="off-menu-name">Nombre</label>
-              <input
-                id="off-menu-name"
-                value={offMenuName}
-                onChange={(event) => setOffMenuName(event.target.value)}
-              />
-              <label htmlFor="off-menu-price">Precio</label>
-              <input
-                id="off-menu-price"
-                type="number"
-                step="0.01"
-                value={offMenuPrice}
-                onChange={(event) => setOffMenuPrice(event.target.value)}
-              />
-            </>
+            <div className={styles.fieldRow}>
+              <div className={styles.field}>
+                <label className={styles.label} htmlFor="off-menu-name">
+                  Nombre
+                </label>
+                <input
+                  id="off-menu-name"
+                  className={styles.input}
+                  value={offMenuName}
+                  onChange={(event) => setOffMenuName(event.target.value)}
+                />
+              </div>
+              <div className={styles.field}>
+                <label className={styles.label} htmlFor="off-menu-price">
+                  Precio
+                </label>
+                <input
+                  id="off-menu-price"
+                  className={styles.input}
+                  type="number"
+                  step="0.01"
+                  value={offMenuPrice}
+                  onChange={(event) => setOffMenuPrice(event.target.value)}
+                />
+              </div>
+            </div>
           )}
 
-          <label htmlFor="item-quantity">Cantidad</label>
-          <input
-            id="item-quantity"
-            type="number"
-            min={1}
-            value={quantity}
-            onChange={(event) => setQuantity(event.target.value)}
-          />
+          <div className={styles.fieldRow}>
+            <div className={styles.field}>
+              <label className={styles.label} htmlFor="item-quantity">
+                Cantidad
+              </label>
+              <input
+                id="item-quantity"
+                className={styles.input}
+                type="number"
+                min={1}
+                value={quantity}
+                onChange={(event) => setQuantity(event.target.value)}
+              />
+            </div>
+            <div className={styles.field}>
+              <label className={styles.label} htmlFor="item-note">
+                Nota
+              </label>
+              <input
+                id="item-note"
+                className={styles.input}
+                value={note}
+                onChange={(event) => setNote(event.target.value)}
+              />
+            </div>
+          </div>
 
-          <label htmlFor="item-note">Nota</label>
-          <input
-            id="item-note"
-            value={note}
-            onChange={(event) => setNote(event.target.value)}
-          />
-
-          <button type="submit">Agregar</button>
+          <button type="submit" className={styles.secondaryButton}>
+            Agregar
+          </button>
         </form>
       )}
 
       {order.status === "DRAFT" && (
-        <button type="button" onClick={handleSend}>
+        <button type="button" className={styles.primaryButton} onClick={handleSend}>
           Enviar pedido
         </button>
       )}
 
       {(order.status === "DRAFT" || order.status === "IN_PROGRESS") && (
-        <form onSubmit={handleFixTable}>
-          <h2>Corregir mesa</h2>
-          <label htmlFor="destination-table">Mesa destino</label>
-          <select
-            id="destination-table"
-            value={destinationTable}
-            onChange={(event) => setDestinationTable(event.target.value)}
-          >
-            <option value="">Selecciona una mesa</option>
-            {freeTables.map((table) => (
-              <option key={table.number} value={table.number}>
-                Mesa {table.number}
-              </option>
-            ))}
-          </select>
-          <button type="submit">Guardar mesa</button>
+        <form className={styles.card} onSubmit={handleFixTable}>
+          <h2 className={styles.cardTitle}>Corregir mesa</h2>
+          <div className={styles.field}>
+            <label className={styles.label} htmlFor="destination-table">
+              Mesa destino
+            </label>
+            <select
+              id="destination-table"
+              className={styles.select}
+              value={destinationTable}
+              onChange={(event) => setDestinationTable(event.target.value)}
+            >
+              <option value="">Selecciona una mesa</option>
+              {freeTables.map((table) => (
+                <option key={table.number} value={table.number}>
+                  Mesa {table.number}
+                </option>
+              ))}
+            </select>
+          </div>
+          <button type="submit" className={styles.secondaryButton}>
+            Guardar mesa
+          </button>
         </form>
       )}
     </section>
