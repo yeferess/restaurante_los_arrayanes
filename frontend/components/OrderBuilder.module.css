@@ -211,6 +211,17 @@
 }
 
 .fieldRow > .field {
+  /* Flex items default to min-width: auto, which refuses to shrink
+     below the input's intrinsic width — on a narrow phone screen that
+     pushed .noteField off-screen instead of actually shrinking. */
+  min-width: 0;
+}
+
+.quantityField {
+  flex: 0 0 4.5rem;
+}
+
+.noteField {
   flex: 1;
 }
 

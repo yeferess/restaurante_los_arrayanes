@@ -30,6 +30,7 @@ const DRAFT_ORDER = {
   items: [],
   total: "12.00",
   has_pending_print: false,
+  active_payment: null,
   daily_number: null,
   sent_at: null,
 };
@@ -43,6 +44,7 @@ const CHARGED_ORDER = {
   items: [],
   total: "20.00",
   has_pending_print: false,
+  active_payment: null,
   daily_number: 5,
   sent_at: "2026-03-10T20:15:00Z",
 };
@@ -56,6 +58,7 @@ const UNPRINTED_ORDER = {
   items: [],
   total: "15.00",
   has_pending_print: true,
+  active_payment: null,
   daily_number: 12,
   sent_at: "2026-03-10T21:00:00Z",
 };
@@ -69,6 +72,7 @@ const DELIVERED_ORDER = {
   items: [],
   total: "18.00",
   has_pending_print: false,
+  active_payment: null,
   daily_number: 13,
   sent_at: "2026-03-10T21:10:00Z",
 };
@@ -82,6 +86,7 @@ const VOIDED_DELIVERED_ORDER = {
   items: [],
   total: "18.00",
   has_pending_print: false,
+  active_payment: null,
   daily_number: 14,
   sent_at: "2026-03-10T21:20:00Z",
 };
@@ -96,9 +101,9 @@ describe("MyOrdersList (T67, RF-8/10)", () => {
     vi.mocked(listTables).mockReset();
     vi.mocked(listMyOrders).mockResolvedValue([DRAFT_ORDER, CHARGED_ORDER]);
     vi.mocked(listTables).mockResolvedValue([
-      { number: 1, status: "OCCUPIED" },
-      { number: 2, status: "PAID" },
-      { number: 3, status: "OCCUPIED" },
+      { number: 1, status: "OCCUPIED", active_order_daily_number: null },
+      { number: 2, status: "PAID", active_order_daily_number: null },
+      { number: 3, status: "OCCUPIED", active_order_daily_number: null },
     ]);
   });
 
@@ -153,14 +158,14 @@ describe("MyOrdersList (T67, RF-8/10)", () => {
   });
 
   it("releases a paid table and the button disappears after refreshing", async () => {
-    vi.mocked(releaseTable).mockResolvedValue({ number: 2, status: "FREE" });
+    vi.mocked(releaseTable).mockResolvedValue({ number: 2, status: "FREE", active_order_daily_number: null });
     const user = userEvent.setup();
     render(<MyOrdersList />);
     await screen.findByText(/mesa 1/i);
     vi.mocked(listTables).mockResolvedValue([
-      { number: 1, status: "OCCUPIED" },
-      { number: 2, status: "FREE" },
-      { number: 3, status: "OCCUPIED" },
+      { number: 1, status: "OCCUPIED", active_order_daily_number: null },
+      { number: 2, status: "FREE", active_order_daily_number: null },
+      { number: 3, status: "OCCUPIED", active_order_daily_number: null },
     ]);
 
     await user.click(screen.getByRole("button", { name: /liberar mesa/i }));
@@ -175,9 +180,9 @@ describe("MyOrdersList (T67, RF-8/10)", () => {
 
   it("hides 'Liberar mesa' once the table was already freed", async () => {
     vi.mocked(listTables).mockResolvedValue([
-      { number: 1, status: "OCCUPIED" },
-      { number: 2, status: "FREE" },
-      { number: 3, status: "OCCUPIED" },
+      { number: 1, status: "OCCUPIED", active_order_daily_number: null },
+      { number: 2, status: "FREE", active_order_daily_number: null },
+      { number: 3, status: "OCCUPIED", active_order_daily_number: null },
     ]);
     render(<MyOrdersList />);
     await screen.findByText(/mesa 1/i);

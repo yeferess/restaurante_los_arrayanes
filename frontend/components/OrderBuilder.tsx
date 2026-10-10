@@ -278,7 +278,7 @@ export function OrderBuilder({ orderId }: { orderId: number }) {
           )}
 
           <div className={styles.fieldRow}>
-            <div className={styles.field}>
+            <div className={`${styles.field} ${styles.quantityField}`}>
               <label className={styles.label} htmlFor="item-quantity">
                 Cantidad
               </label>
@@ -291,7 +291,7 @@ export function OrderBuilder({ orderId }: { orderId: number }) {
                 onChange={(event) => setQuantity(event.target.value)}
               />
             </div>
-            <div className={styles.field}>
+            <div className={`${styles.field} ${styles.noteField}`}>
               <label className={styles.label} htmlFor="item-note">
                 Nota
               </label>

@@ -15,8 +15,8 @@ describe("TableCountSettings (T64, RF-1)", () => {
     vi.mocked(listTables).mockReset();
     vi.mocked(resizeTables).mockReset();
     vi.mocked(listTables).mockResolvedValue([
-      { number: 1, status: "FREE" },
-      { number: 2, status: "OCCUPIED" },
+      { number: 1, status: "FREE", active_order_daily_number: null },
+      { number: 2, status: "OCCUPIED", active_order_daily_number: null },
     ]);
   });
 
@@ -28,9 +28,9 @@ describe("TableCountSettings (T64, RF-1)", () => {
 
   it("resizes the table count", async () => {
     vi.mocked(resizeTables).mockResolvedValue([
-      { number: 1, status: "FREE" },
-      { number: 2, status: "OCCUPIED" },
-      { number: 3, status: "FREE" },
+      { number: 1, status: "FREE", active_order_daily_number: null },
+      { number: 2, status: "OCCUPIED", active_order_daily_number: null },
+      { number: 3, status: "FREE", active_order_daily_number: null },
     ]);
     const user = userEvent.setup();
     render(<TableCountSettings />);

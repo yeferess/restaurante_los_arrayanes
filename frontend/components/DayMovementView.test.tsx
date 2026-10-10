@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { DayMovementView } from "./DayMovementView";
+import type { DayMovement } from "@/lib/api/stats";
 
 vi.mock("@/lib/api/stats", () => ({
   getDayMovement: vi.fn(),
@@ -9,7 +10,7 @@ vi.mock("@/lib/api/stats", () => ({
 
 import { getDayMovement } from "@/lib/api/stats";
 
-const MOVEMENT = {
+const MOVEMENT: DayMovement = {
   date: "2026-03-10",
   orders: [
     {

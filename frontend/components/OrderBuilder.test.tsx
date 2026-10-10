@@ -27,6 +27,10 @@ const DRAFT_ORDER = {
   delivered: false,
   items: [],
   total: "0.00",
+  has_pending_print: false,
+  active_payment: null,
+  daily_number: null,
+  sent_at: null,
 };
 
 const DELIVERED_ORDER = {
@@ -68,8 +72,8 @@ describe("OrderBuilder (T66, RF-3/4/5/6/7)", () => {
       { id: 5, name: "Limonada", category: { id: 1, name: "Bebidas" }, price: "4.50", is_available: true },
     ]);
     vi.mocked(listTables).mockResolvedValue([
-      { number: 1, status: "OCCUPIED" },
-      { number: 2, status: "FREE" },
+      { number: 1, status: "OCCUPIED", active_order_daily_number: null },
+      { number: 2, status: "FREE", active_order_daily_number: null },
     ]);
   });
 

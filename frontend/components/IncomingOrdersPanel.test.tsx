@@ -35,6 +35,7 @@ const ORDER_1 = {
   items: [],
   total: "12.00",
   has_pending_print: false,
+  active_payment: null,
   daily_number: 9,
   sent_at: "2026-03-10T19:00:00Z",
 };

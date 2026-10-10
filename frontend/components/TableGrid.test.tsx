@@ -53,6 +53,10 @@ describe("TableGrid (T65, RF-1/2/13)", () => {
       delivered: false,
       items: [],
       total: "0.00",
+      has_pending_print: false,
+      active_payment: null,
+      daily_number: null,
+      sent_at: null,
     });
     const user = userEvent.setup();
     render(<TableGrid />);
