@@ -58,6 +58,12 @@
   margin-top: 0.3rem;
 }
 
+.dailyNumber {
+  font-size: 0.78rem;
+  color: var(--muted);
+  margin-top: -0.3rem;
+}
+
 .badge {
   align-self: flex-start;
   font-size: 0.75rem;

@@ -8,6 +8,7 @@ import {
   type ApiErrorBody,
 } from "@/lib/api/orders";
 import { subscribeToOrderUpdates } from "@/lib/api/ordersSocket";
+import { formatPrice } from "@/lib/format";
 import { ChargeOrderModal } from "./ChargeOrderModal";
 import styles from "./IncomingOrdersPanel.module.css";
 
@@ -15,6 +16,21 @@ function formatError(error: unknown): string {
   const detail = (error as ApiErrorBody)?.detail;
   if (Array.isArray(detail)) return detail.join(" ");
   return detail ?? "Ocurrió un error inesperado.";
+}
+
+/** RF-14: the internal id is never shown as text — only the daily
+ * number (blank, as "N° —", for a pre-upgrade order with none). */
+function orderTitle(order: Order): string {
+  return order.daily_number !== null ? `N° ${order.daily_number}` : "N° —";
+}
+
+function formatSentAt(sentAt: string | null): string | null {
+  if (!sentAt) return null;
+  const date = new Date(sentAt);
+  const pad = (value: number) => value.toString().padStart(2, "0");
+  return `${pad(date.getDate())}/${pad(date.getMonth() + 1)} ${pad(
+    date.getHours()
+  )}:${pad(date.getMinutes())}`;
 }
 
 /** Admin's incoming-orders panel (T68 — soporte RF-9, RF-11).
@@ -80,10 +96,17 @@ export function IncomingOrdersPanel() {
           {orders.map((order) => (
             <li key={order.id} className={styles.card}>
               <div className={styles.cardHeader}>
-                <span className={styles.orderId}>Pedido {order.id}</span>
+                <div className={styles.titleGroup}>
+                  <span className={styles.orderId}>{orderTitle(order)}</span>
+                  {formatSentAt(order.sent_at) && (
+                    <span className={styles.sentAt}>
+                      {formatSentAt(order.sent_at)}
+                    </span>
+                  )}
+                </div>
                 <span className={styles.table}>Mesa {order.table_number}</span>
               </div>
-              <div className={styles.total}>${order.total}</div>
+              <div className={styles.total}>${formatPrice(order.total)}</div>
               {order.has_pending_print && (
                 <span className={styles.printPendingBadge}>No impreso en cocina</span>
               )}

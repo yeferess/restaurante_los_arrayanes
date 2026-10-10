@@ -293,3 +293,28 @@ una condición verificable de "Hecho cuando".
   Hecho cuando: se completan los 7 puntos de la checklist manual del
   plan (sección 8) con la Epson TM-U220 física conectada, y se
   documenta el resultado de cada uno.
+
+---
+
+## Fase 11 — Número del día (RF-2, 003-RF-14)
+
+- [x] **T37 — Encabezado muestra el número del día, no el id**
+  RF: RF-2, 003-RF-14
+  Hecho cuando: `build_ticket_text` arma el encabezado con `"N°
+  {order.daily_number}"` + la fecha/hora de `order.sent_at`, y conserva
+  por separado la hora del intento de impresión (ya existente desde
+  T08) sin que ambas marcas de tiempo se confundan en el texto; ninguna
+  línea del ticket usa `order.id`.
+
+- [x] **T38 — Campo en blanco para pedidos sin número del día**
+  RF: RF-2, 003-RF-14
+  Hecho cuando: un pedido con `daily_number=None` (enviado antes de
+  desplegar 003-RF-14) imprime ese campo en blanco, sin lanzar una
+  excepción ni mostrar literalmente `"None"`.
+
+- [x] **T39 — Unit tests del encabezado con número del día (T37, T38)**
+  RF: RF-2
+  Hecho cuando: cubren el encabezado con un `daily_number` real, con
+  `daily_number=None`, y un caso con fecha de envío distinta a la hora
+  del intento de impresión (ej. una adición impresa minutos después del
+  envío original) confirmando que no se mezclan; todos pasan.

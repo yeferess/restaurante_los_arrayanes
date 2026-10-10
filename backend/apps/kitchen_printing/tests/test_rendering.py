@@ -42,13 +42,47 @@ class HeaderAndMetadataTests(TestCase):
         self.assertIn("ADICION - MESA 5", build_ticket_text(addition))
         self.assertIn("ANULACION - MESA 5", build_ticket_text(void))
 
-    def test_includes_order_id_and_waiter_username(self):
+    def test_includes_daily_number_and_waiter_username(self):
+        """T37 — the header shows the daily number (003-RF-14), never
+        the internal id."""
+        self.order.daily_number = 7
+        self.order.sent_at = timezone.now()
+        self.order.save(update_fields=["daily_number", "sent_at"])
         job = PrintJob.objects.create(
             order=self.order, ticket_type=PrintJob.TicketType.NEW_ORDER
         )
         text = build_ticket_text(job)
-        self.assertIn(f"Pedido #{self.order.id}", text)
+        self.assertIn("N° 7", text)
         self.assertIn("Mesero: cgarcia", text)
+        self.assertNotIn(f"Pedido #{self.order.id}", text)
+        self.assertNotIn(f"#{self.order.id}", text)
+
+    def test_blank_daily_number_for_a_pre_upgrade_order(self):
+        """T38 — an order with no daily_number (sent before 003-RF-14
+        existed) still prints, with that field blank."""
+        job = PrintJob.objects.create(
+            order=self.order, ticket_type=PrintJob.TicketType.NEW_ORDER
+        )
+        text = build_ticket_text(job)
+        self.assertIn("N°", text)
+        self.assertNotIn("N° None", text)
+
+    def test_sent_at_and_print_attempt_time_are_two_distinct_fields(self):
+        """T39 — the order's send time (003-RF-14) and the print
+        attempt's own time (already existing, RF-2) never get mixed up
+        on the same ticket."""
+        self.order.daily_number = 3
+        self.order.sent_at = timezone.now() - timezone.timedelta(hours=1)
+        self.order.save(update_fields=["daily_number", "sent_at"])
+        job = PrintJob.objects.create(
+            order=self.order, ticket_type=PrintJob.TicketType.NEW_ORDER
+        )
+        text = build_ticket_text(job)
+        sent_label = timezone.localtime(self.order.sent_at).strftime("%d/%m %H:%M")
+        printed_label = timezone.localtime().strftime("%d/%m %H:%M")
+        self.assertIn(f"Enviado {sent_label}", text)
+        self.assertIn(f"Impreso {printed_label}", text)
+        self.assertNotEqual(sent_label, printed_label)
 
     def test_every_line_fits_within_the_configured_width(self):
         job = PrintJob.objects.create(

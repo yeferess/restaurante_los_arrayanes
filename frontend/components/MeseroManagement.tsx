@@ -1,12 +1,14 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import {
+  listMeseros,
   createMesero,
   resetMeseroPin,
   deactivateMesero,
   reactivateMesero,
   unlockMesero,
+  type MeseroAccount,
   type ApiErrorBody,
 } from "@/lib/api/usuarios";
 import styles from "./MeseroManagement.module.css";
@@ -17,7 +19,44 @@ function formatError(error: unknown): string {
   return detail ?? "Ocurrió un error inesperado.";
 }
 
-function CreateMeseroForm() {
+function MeseroSelect({
+  id,
+  label,
+  meseros,
+  value,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  meseros: MeseroAccount[];
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div className={styles.field}>
+      <label className={styles.label} htmlFor={id}>
+        {label}
+      </label>
+      <select
+        id={id}
+        className={styles.input}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        required
+      >
+        <option value="">Selecciona un mesero</option>
+        {meseros.map((mesero) => (
+          <option key={mesero.id} value={mesero.id}>
+            {mesero.username}
+            {!mesero.is_active ? " (inactivo)" : ""}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+function CreateMeseroForm({ onCreated }: { onCreated: () => void }) {
   const [username, setUsername] = useState("");
   const [pin, setPin] = useState("");
   const [message, setMessage] = useState<string | null>(null);
@@ -30,6 +69,7 @@ function CreateMeseroForm() {
       setMessage(`Mesero "${mesero.username}" creado (id ${mesero.id}).`);
       setUsername("");
       setPin("");
+      onCreated();
     } catch (error) {
       setMessage(formatError(error));
     }
@@ -74,7 +114,7 @@ function CreateMeseroForm() {
   );
 }
 
-function ResetPinForm() {
+function ResetPinForm({ meseros }: { meseros: MeseroAccount[] }) {
   const [meseroId, setMeseroId] = useState("");
   const [nuevoPin, setNuevoPin] = useState("");
   const [message, setMessage] = useState<string | null>(null);
@@ -94,18 +134,13 @@ function ResetPinForm() {
   return (
     <form className={styles.card} onSubmit={handleSubmit}>
       <h2 className={styles.cardTitle}>Restablecer PIN</h2>
-      <div className={styles.field}>
-        <label className={styles.label} htmlFor="reset-pin-id">
-          Id del mesero (PIN)
-        </label>
-        <input
-          id="reset-pin-id"
-          className={styles.input}
-          value={meseroId}
-          onChange={(e) => setMeseroId(e.target.value)}
-          required
-        />
-      </div>
+      <MeseroSelect
+        id="reset-pin-mesero"
+        label="Mesero (restablecer PIN)"
+        meseros={meseros}
+        value={meseroId}
+        onChange={setMeseroId}
+      />
       <div className={styles.field}>
         <label className={styles.label} htmlFor="reset-pin-value">
           Nuevo PIN (restablecer)
@@ -130,7 +165,13 @@ function ResetPinForm() {
   );
 }
 
-function DeactivateForm() {
+function DeactivateForm({
+  meseros,
+  onChanged,
+}: {
+  meseros: MeseroAccount[];
+  onChanged: () => void;
+}) {
   const [meseroId, setMeseroId] = useState("");
   const [message, setMessage] = useState<string | null>(null);
 
@@ -140,6 +181,7 @@ function DeactivateForm() {
     try {
       await deactivateMesero(Number(meseroId));
       setMessage("Mesero desactivado.");
+      onChanged();
     } catch (error) {
       setMessage(formatError(error));
     }
@@ -148,18 +190,13 @@ function DeactivateForm() {
   return (
     <form className={styles.card} onSubmit={handleSubmit}>
       <h2 className={styles.cardTitle}>Desactivar mesero</h2>
-      <div className={styles.field}>
-        <label className={styles.label} htmlFor="deactivate-id">
-          Id del mesero (desactivar)
-        </label>
-        <input
-          id="deactivate-id"
-          className={styles.input}
-          value={meseroId}
-          onChange={(e) => setMeseroId(e.target.value)}
-          required
-        />
-      </div>
+      <MeseroSelect
+        id="deactivate-mesero"
+        label="Mesero (desactivar)"
+        meseros={meseros}
+        value={meseroId}
+        onChange={setMeseroId}
+      />
       <button type="submit" className={styles.submitButton}>
         Desactivar
       </button>
@@ -172,7 +209,13 @@ function DeactivateForm() {
   );
 }
 
-function ReactivateForm() {
+function ReactivateForm({
+  meseros,
+  onChanged,
+}: {
+  meseros: MeseroAccount[];
+  onChanged: () => void;
+}) {
   const [meseroId, setMeseroId] = useState("");
   const [message, setMessage] = useState<string | null>(null);
 
@@ -182,6 +225,7 @@ function ReactivateForm() {
     try {
       await reactivateMesero(Number(meseroId));
       setMessage("Mesero reactivado.");
+      onChanged();
     } catch (error) {
       setMessage(formatError(error));
     }
@@ -190,18 +234,13 @@ function ReactivateForm() {
   return (
     <form className={styles.card} onSubmit={handleSubmit}>
       <h2 className={styles.cardTitle}>Reactivar mesero</h2>
-      <div className={styles.field}>
-        <label className={styles.label} htmlFor="reactivate-id">
-          Id del mesero (reactivar)
-        </label>
-        <input
-          id="reactivate-id"
-          className={styles.input}
-          value={meseroId}
-          onChange={(e) => setMeseroId(e.target.value)}
-          required
-        />
-      </div>
+      <MeseroSelect
+        id="reactivate-mesero"
+        label="Mesero (reactivar)"
+        meseros={meseros}
+        value={meseroId}
+        onChange={setMeseroId}
+      />
       <button type="submit" className={styles.submitButton}>
         Reactivar
       </button>
@@ -214,7 +253,7 @@ function ReactivateForm() {
   );
 }
 
-function UnlockForm() {
+function UnlockForm({ meseros }: { meseros: MeseroAccount[] }) {
   const [meseroId, setMeseroId] = useState("");
   const [nuevoPin, setNuevoPin] = useState("");
   const [message, setMessage] = useState<string | null>(null);
@@ -234,18 +273,13 @@ function UnlockForm() {
   return (
     <form className={styles.card} onSubmit={handleSubmit}>
       <h2 className={styles.cardTitle}>Desbloquear mesero</h2>
-      <div className={styles.field}>
-        <label className={styles.label} htmlFor="unlock-id">
-          Id del mesero (desbloquear)
-        </label>
-        <input
-          id="unlock-id"
-          className={styles.input}
-          value={meseroId}
-          onChange={(e) => setMeseroId(e.target.value)}
-          required
-        />
-      </div>
+      <MeseroSelect
+        id="unlock-mesero"
+        label="Mesero (desbloquear)"
+        meseros={meseros}
+        value={meseroId}
+        onChange={setMeseroId}
+      />
       <div className={styles.field}>
         <label className={styles.label} htmlFor="unlock-pin">
           PIN de desbloqueo
@@ -272,19 +306,29 @@ function UnlockForm() {
 
 /** Mesero management screen (T53 — RF-2, RF-3, RF-4, RF-5, RF-7).
  *
- * No listing endpoint exists in the API (spec's Fase 3 only defines
- * per-action POSTs by id), so this is a set of independent action forms
- * operating on a mesero id, not a live table. */
+ * Every action form picks its target mesero from a dropdown (populated
+ * from GET /api/usuarios/meseros) instead of asking the admin to type a
+ * raw id. */
 export function MeseroManagement() {
+  const [meseros, setMeseros] = useState<MeseroAccount[]>([]);
+
+  function refresh() {
+    return listMeseros().then(setMeseros);
+  }
+
+  useEffect(() => {
+    refresh();
+  }, []);
+
   return (
     <section>
       <h1 className={styles.heading}>Gestión de meseros</h1>
       <div className={styles.grid}>
-        <CreateMeseroForm />
-        <ResetPinForm />
-        <DeactivateForm />
-        <ReactivateForm />
-        <UnlockForm />
+        <CreateMeseroForm onCreated={refresh} />
+        <ResetPinForm meseros={meseros} />
+        <DeactivateForm meseros={meseros} onChanged={refresh} />
+        <ReactivateForm meseros={meseros} onChanged={refresh} />
+        <UnlockForm meseros={meseros} />
       </div>
     </section>
   );

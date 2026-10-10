@@ -153,6 +153,18 @@ class OrderDetailView(APIView):
 
         return Response(OrderSerializer(order).data)
 
+    def delete(self, request, pk):
+        order, error = _get_own_order_or_error(request, pk)
+        if error:
+            return error
+        try:
+            services.delete_order(order)
+        except DjangoValidationError as exc:
+            return Response(
+                {"detail": exc.messages}, status=status.HTTP_409_CONFLICT
+            )
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
 
 class AddItemView(APIView):
     """POST /api/pedidos/{id}/items (RF-3, RF-4, RF-5). Owner-only."""

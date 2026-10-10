@@ -206,7 +206,7 @@ Tu trabajo:
 
 #QA
 
-#plan.md
+###############3plan.md
 Lee docs/constitution.md y specs/002-gestion-menu/spec.md. NO escribas
 código todavía.
 
@@ -234,3 +234,61 @@ Genera specs/002-gestion-menu/plan.md con:
 
 Todo debe respetar docs/constitution.md y cubrir el 100% de los RF de la
 spec. Marca explícitamente qué RF cubre cada parte del plan.
+
+####################impletemtacion automatica
+Vamos a implementar specs/004-impresion-cocina/tasks.md completa, de
+principio a fin, sin detenerte entre tareas ni entre fases.
+
+Para cada tarea, en el orden exacto de tasks.md:
+1. Escribe primero los tests, luego el código.
+2. Ejecuta la suite de tests del backend y muéstrame el resultado.
+3. Marca la tarea como hecha en tasks.md e indica qué RF cubre.
+4. Si la tarea pasa sus tests, continúa de inmediato con la siguiente
+   tarea, sin pedirme confirmación ni esperar ningún mensaje mío.
+5. Si CUALQUIER tarea falla sus tests, DETENTE ahí mismo de inmediato —
+   no sigas con ninguna tarea más, muéstrame el error exacto y espera mi
+   instrucción antes de continuar.
+
+Nunca empieces una tarea nueva sin haber completado y marcado la anterior
+como hecha. Empieza por la primera tarea pendiente y continúa hasta la
+última, salvo que ocurra el punto 5.
+
+####################Prompt para comunicacion de backend y frontend
+Tengo un bug real de CSRF en producción local: el login funciona, pero
+cualquier POST/PUT/PATCH/DELETE autenticado por sesión (ej. crear
+categoría) falla porque falta el mecanismo completo de CSRF entre el
+backend y el frontend. Diagnóstico confirmado:
+
+1. Falta agregar el origen del frontend (http://localhost:3000) a
+   CSRF_TRUSTED_ORIGINS en la configuración de Django.
+2. El backend nunca le manda al navegador la cookie csrftoken (hace falta
+   asegurarla, por ejemplo, en la vista de login).
+3. El frontend nunca lee esa cookie ni la reenvía como header
+   X-CSRFToken en sus peticiones — y esto está duplicado (o ausente) en
+   lib/api/auth.ts, lib/api/menu.ts, lib/api/orders.ts y
+   lib/api/usuarios.ts.
+
+Quiero que lo arregles así, respetando docs/constitution.md (tests
+primero, código después):
+
+1. Backend: agrega CSRF_TRUSTED_ORIGINS con el origen del frontend, y
+   asegúrate de que el login exponga correctamente la cookie csrftoken
+   al navegador.
+2. Frontend: crea UN solo helper de fetch compartido (ej.
+   lib/api/client.ts) que lea la cookie csrftoken del navegador y la
+   adjunte como header X-CSRFToken en cualquier POST/PUT/PATCH/DELETE.
+   Refactoriza los 4 archivos (auth, menu, orders, usuarios) para que
+   todos usen ese helper en vez de repetir la lógica cada uno por su
+   cuenta.
+3. Tests: agrega al menos un test de backend que SÍ aplique la validación
+   CSRF real (sin saltártela con el comportamiento por defecto del test
+   client de Django), para que este tipo de falla no vuelva a pasar
+   desapercibida. Explica en el resultado qué cubre ese test y por qué
+   los tests anteriores no lo detectaron.
+4. No toques nada de la lógica de negocio de los módulos ya
+   implementados (menú, mesas y pedidos) — este cambio debe limitarse a
+   la capa de autenticación/comunicación entre frontend y backend.
+
+Al terminar, ejecuta toda la suite de tests (no solo la nueva) y
+muéstrame el resultado, para confirmar que no rompiste nada de lo que ya
+funcionaba.

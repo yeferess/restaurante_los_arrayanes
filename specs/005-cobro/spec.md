@@ -125,6 +125,12 @@ nunca se rompa ese invariante (ver RF-6).
 - El sistema no deberá requerir un desglose adicional agrupado por
   "pedido original / adiciones / anulado" — el total consolidado y el
   listado de ítems ya existentes son suficientes.
+- El consolidado deberá identificar el pedido por su número del día
+  junto con la fecha y hora en que fue enviado
+  ([003-mesas-pedidos RF-14](../003-mesas-pedidos/spec.md)) — nunca por
+  su identificador interno. Si el pedido no tiene número del día (por
+  haberse enviado antes de que existiera ese requisito), el sistema
+  deberá mostrar ese dato en blanco en su lugar, sin bloquear el cobro.
 
 ### RF-5 — Efecto de confirmar el cobro
 
@@ -215,6 +221,9 @@ nunca se rompa ese invariante (ver RF-6).
   anuló y el pedido volvió a "en preparación" → el pedido admite esos
   cambios con normalidad (003), y el siguiente cobro usará el total
   actualizado (RF-4).
+- Se cobra un pedido sin número del día (enviado antes de que existiera
+  ese requisito) → el consolidado y el historial del cobro muestran ese
+  dato en blanco, sin impedir el cobro (RF-4).
 
 ## Fuera de alcance
 
@@ -261,6 +270,8 @@ nunca se rompa ese invariante (ver RF-6).
   (activos y anulados) que tuvo.
 - Ningún endpoint de este módulo funciona sin sesión autenticada, y
   todos exigen rol admin.
+- El consolidado de cobro identifica el pedido por su número del día y
+  la fecha/hora de envío, nunca por su identificador interno.
 
 ## Dudas abiertas
 
@@ -298,3 +309,19 @@ De la revisión de QA posterior, quedaron resueltas y ya incorporadas:
 - Las reglas 4 y 5 de `docs/constitution.md` se ampliaron explícitamente
   para nombrar "anular un cobro" y "gestionar el catálogo de cuentas de
   pago" como acciones de admin con trazabilidad obligatoria.
+
+De la ronda de "número del día" (nuevo requisito posterior, ver
+003-mesas-pedidos RF-14), quedó resuelto y ya incorporado:
+
+- El consolidado de cobro identifica el pedido por su número del día y
+  su fecha/hora de envío, nunca por el identificador interno; si el
+  pedido no tiene número del día (enviado antes de este cambio), se
+  muestra en blanco sin bloquear el cobro (RF-4).
+
+De la auditoría QA posterior sobre el "número del día", quedó resuelto
+y ya incorporado:
+
+- El consolidado de cobro no necesita restablecer explícitamente la
+  regla de "menor jerarquía visual" entre número y fecha/hora: le aplica
+  por la referencia ya hecha a 003-mesas-pedidos RF-14, que la define de
+  forma general para toda pantalla que identifique un pedido (RF-4).

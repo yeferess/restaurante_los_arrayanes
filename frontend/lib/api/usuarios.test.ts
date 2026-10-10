@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   createMesero,
+  listMeseros,
   resetMeseroPin,
   deactivateMesero,
   reactivateMesero,
@@ -64,6 +65,25 @@ describe("lib/api/usuarios (T55, RF-2/4/5/6/7/10)", () => {
     await expect(createMesero("carlos", "1234")).rejects.toEqual({
       detail: "Ese nombre de usuario ya existe.",
     });
+  });
+
+  it("listMeseros gets /api/usuarios/meseros", async () => {
+    mockOk([
+      {
+        id: 7,
+        username: "juan",
+        role: "MESERO",
+        is_active: true,
+        created_by: 1,
+        created_at: "2026-01-01T00:00:00Z",
+      },
+    ]);
+    const result = await listMeseros();
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringContaining("/api/usuarios/meseros"),
+      expect.objectContaining({ credentials: "include" })
+    );
+    expect(result[0].username).toBe("juan");
   });
 
   it("resetMeseroPin posts nuevo_pin to the reset-pin endpoint", async () => {

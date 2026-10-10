@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   listTables,
   createOrder,
+  releaseTable,
   type Table,
   type ApiErrorBody,
 } from "@/lib/api/orders";
@@ -31,20 +33,35 @@ function formatError(error: unknown): string {
  * table's status, and lets the mesero create a new order on a free
  * one. */
 export function TableGrid() {
+  const router = useRouter();
   const [tables, setTables] = useState<Table[]>([]);
   const [message, setMessage] = useState<string | null>(null);
 
-  useEffect(() => {
-    listTables()
+  function refresh() {
+    return listTables()
       .then(setTables)
       .catch((error) => setMessage(formatError(error)));
+  }
+
+  useEffect(() => {
+    refresh();
   }, []);
+
+  async function handleRelease(tableNumber: number) {
+    setMessage(null);
+    try {
+      await releaseTable(tableNumber);
+      await refresh();
+    } catch (error) {
+      setMessage(formatError(error));
+    }
+  }
 
   async function handleCreate(tableNumber: number) {
     setMessage(null);
     try {
       const order = await createOrder(tableNumber);
-      setMessage(`Pedido ${order.id} creado en la mesa ${tableNumber}.`);
+      router.push(`/mesero/pedidos/${order.id}`);
     } catch (error) {
       setMessage(formatError(error));
     }
@@ -65,6 +82,11 @@ export function TableGrid() {
               {STATUS_LABEL[table.status]}
             </span>
             <span className={styles.number}>Mesa {table.number}</span>
+            {table.active_order_daily_number !== null && (
+              <span className={styles.dailyNumber}>
+                N° {table.active_order_daily_number}
+              </span>
+            )}
             {table.status === "FREE" && (
               <button
                 type="button"
@@ -72,6 +94,15 @@ export function TableGrid() {
                 onClick={() => handleCreate(table.number)}
               >
                 Crear pedido
+              </button>
+            )}
+            {table.status === "PAID" && (
+              <button
+                type="button"
+                className={styles.createButton}
+                onClick={() => handleRelease(table.number)}
+              >
+                Liberar mesa
               </button>
             )}
           </li>

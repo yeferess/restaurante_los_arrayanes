@@ -35,6 +35,8 @@ const ORDER_1 = {
   items: [],
   total: "12.00",
   has_pending_print: false,
+  daily_number: 9,
+  sent_at: "2026-03-10T19:00:00Z",
 };
 
 describe("IncomingOrdersPanel (T68, soporte RF-9/11)", () => {
@@ -165,5 +167,21 @@ describe("IncomingOrdersPanel (T68, soporte RF-9/11)", () => {
     expect(
       screen.queryByRole("button", { name: /reintentar/i })
     ).not.toBeInTheDocument();
+  });
+
+  it("shows the total with a thousands separator", async () => {
+    vi.mocked(listIncomingOrders).mockResolvedValue([
+      { ...ORDER_1, total: "20000.00" },
+    ]);
+    render(<IncomingOrdersPanel />);
+    expect(await screen.findByText("$20.000,00")).toBeInTheDocument();
+  });
+
+  it("shows the daily number with its sent-at timestamp instead of the internal id (T80, RF-14)", async () => {
+    render(<IncomingOrdersPanel />);
+    await screen.findByText(/mesa 1/i);
+    expect(screen.getByText("N° 9")).toBeInTheDocument();
+    expect(screen.getByText(/\d{2}\/\d{2} \d{2}:\d{2}/)).toBeInTheDocument();
+    expect(screen.queryByText(/^pedido 41$/i)).not.toBeInTheDocument();
   });
 });

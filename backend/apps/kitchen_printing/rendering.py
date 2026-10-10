@@ -34,20 +34,36 @@ def _center(text: str, width: int) -> str:
     return text.center(width).rstrip()
 
 
+def _pack_line(left: str, right: str, width: int) -> str:
+    spacing = max(width - len(left) - len(right), 1)
+    return f"{left}{' ' * spacing}{right}"
+
+
 def _build_header(job: PrintJob) -> list[str]:
+    """RF-2, 003-RF-14: identifies the order by its daily number — never
+    the internal id — alongside its send time; the print attempt's own
+    time (already existing before RF-14) is a distinct field on the
+    second line, never mixed up with the send time."""
     width = _columns()
     order = job.order
     label = TICKET_TYPE_LABELS[job.ticket_type]
-    now = timezone.localtime().strftime("%d/%m/%y %H:%M")
-    order_tag = f"Pedido #{order.id}"
-    spacing = max(width - len(order_tag) - len(now), 1)
+
+    daily_number_tag = (
+        f"N° {order.daily_number}" if order.daily_number is not None else "N°"
+    )
+    sent_at_tag = (
+        f"Enviado {timezone.localtime(order.sent_at).strftime('%d/%m %H:%M')}"
+        if order.sent_at is not None
+        else "Enviado"
+    )
+    printed_at_tag = f"Impreso {timezone.localtime().strftime('%d/%m %H:%M')}"
 
     return [
         "=" * width,
         _center(f"{label} - MESA {order.table_number}", width),
         "=" * width,
-        f"{order_tag}{' ' * spacing}{now}",
-        f"Mesero: {order.waiter.username}",
+        _pack_line(daily_number_tag, sent_at_tag, width),
+        _pack_line(f"Mesero: {order.waiter.username}", printed_at_tag, width),
         "-" * width,
     ]
 

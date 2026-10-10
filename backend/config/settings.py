@@ -25,7 +25,7 @@ SECRET_KEY = "django-insecure-tgvuod=z-+ejs20n&_wnjbjyk&&99=j)tl038(x%kvqy_3jqrv
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ["localhost", "127.0.0.1", "192.168.101.10", "192.168.101.5"]
+ALLOWED_HOSTS = ["localhost", "127.0.0.1", "192.168.101.10", "192.168.101.5", "192.168.18.46"]
 
 
 # Application definition
@@ -46,6 +46,7 @@ INSTALLED_APPS = [
     "apps.orders",
     "apps.kitchen_printing",
     "apps.payments",
+    "apps.stats",
 ]
 
 MIDDLEWARE = [
@@ -128,7 +129,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = "en-us"
 
-TIME_ZONE = "UTC"
+TIME_ZONE = "America/Bogota"
 
 USE_I18N = True
 
@@ -189,6 +190,7 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://192.168.101.10:3000",
     "http://192.168.101.5:3000",
+    "http://192.168.18.46:3000",
 ]
 
 CORS_ALLOW_CREDENTIALS = True
@@ -202,4 +204,5 @@ CSRF_TRUSTED_ORIGINS = [
     "http://localhost:3000",
     "http://192.168.101.10:3000",
     "http://192.168.101.5:3000",
+    "http://192.168.18.46:3000",
 ]

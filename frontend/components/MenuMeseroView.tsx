@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { getMenu, type Product, type ApiErrorBody } from "@/lib/api/menu";
 import { subscribeToMenuUpdates } from "@/lib/api/menuSocket";
+import { formatPrice } from "@/lib/format";
 import styles from "./MenuMeseroView.module.css";
 
 function groupByCategory(products: Product[]): Array<[string, Product[]]> {
@@ -67,7 +68,7 @@ export function MenuMeseroView() {
             {items.map((product) => (
               <li key={product.id} className={styles.row}>
                 <span className={styles.name}>{product.name}</span>
-                <span className={styles.price}>${product.price}</span>
+                <span className={styles.price}>${formatPrice(product.price)}</span>
               </li>
             ))}
           </ul>

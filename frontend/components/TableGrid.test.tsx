@@ -3,21 +3,30 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { TableGrid } from "./TableGrid";
 
+const pushMock = vi.fn();
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: pushMock }),
+}));
+
 vi.mock("@/lib/api/orders", () => ({
   listTables: vi.fn(),
   createOrder: vi.fn(),
+  releaseTable: vi.fn(),
 }));
 
-import { listTables, createOrder } from "@/lib/api/orders";
+import { listTables, createOrder, releaseTable } from "@/lib/api/orders";
 
 describe("TableGrid (T65, RF-1/2/13)", () => {
   beforeEach(() => {
     vi.mocked(listTables).mockReset();
     vi.mocked(createOrder).mockReset();
+    vi.mocked(releaseTable).mockReset();
+    pushMock.mockReset();
     vi.mocked(listTables).mockResolvedValue([
-      { number: 1, status: "FREE" },
-      { number: 2, status: "OCCUPIED" },
-      { number: 3, status: "PAID" },
+      { number: 1, status: "FREE", active_order_daily_number: null },
+      { number: 2, status: "OCCUPIED", active_order_daily_number: 7 },
+      { number: 3, status: "PAID", active_order_daily_number: 5 },
     ]);
   });
 
@@ -52,7 +61,34 @@ describe("TableGrid (T65, RF-1/2/13)", () => {
     await user.click(screen.getByRole("button", { name: /crear pedido/i }));
 
     await waitFor(() => expect(createOrder).toHaveBeenCalledWith(1));
-    expect(await screen.findByText(/pedido 41 creado/i)).toBeInTheDocument();
+    await waitFor(() => expect(pushMock).toHaveBeenCalledWith("/mesero/pedidos/41"));
+  });
+
+  it("only offers 'Liberar mesa' on a paid table", async () => {
+    render(<TableGrid />);
+    await screen.findByText(/mesa 1/i);
+    const buttons = screen.getAllByRole("button", { name: /liberar mesa/i });
+    expect(buttons).toHaveLength(1);
+  });
+
+  it("releases a paid table and refreshes the grid", async () => {
+    vi.mocked(releaseTable).mockResolvedValue({
+      number: 3,
+      status: "FREE",
+      active_order_daily_number: null,
+    });
+    const user = userEvent.setup();
+    render(<TableGrid />);
+    await screen.findByText(/mesa 1/i);
+    vi.mocked(listTables).mockResolvedValue([
+      { number: 1, status: "FREE", active_order_daily_number: null },
+      { number: 2, status: "OCCUPIED", active_order_daily_number: 7 },
+      { number: 3, status: "FREE", active_order_daily_number: null },
+    ]);
+
+    await user.click(screen.getByRole("button", { name: /liberar mesa/i }));
+
+    await waitFor(() => expect(releaseTable).toHaveBeenCalledWith(3));
   });
 
   it("shows the 409 error when the table is no longer free", async () => {
@@ -66,5 +102,22 @@ describe("TableGrid (T65, RF-1/2/13)", () => {
     await user.click(screen.getByRole("button", { name: /crear pedido/i }));
 
     expect(await screen.findByText("La mesa no está libre.")).toBeInTheDocument();
+  });
+
+  it("shows the daily number next to an occupied or paid table (T79, RF-14)", async () => {
+    render(<TableGrid />);
+    expect(await screen.findByText(/mesa 2/i)).toBeInTheDocument();
+    expect(screen.getByText("N° 7")).toBeInTheDocument();
+    expect(screen.getByText("N° 5")).toBeInTheDocument();
+  });
+
+  it("shows no daily number on a free table, or when it is still null", async () => {
+    vi.mocked(listTables).mockResolvedValue([
+      { number: 1, status: "FREE", active_order_daily_number: null },
+      { number: 2, status: "OCCUPIED", active_order_daily_number: null },
+    ]);
+    render(<TableGrid />);
+    await screen.findByText(/mesa 1/i);
+    expect(screen.queryByText(/^N° /)).not.toBeInTheDocument();
   });
 });

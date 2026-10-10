@@ -29,6 +29,12 @@ const DRAFT_ORDER = {
   total: "0.00",
 };
 
+const DELIVERED_ORDER = {
+  ...DRAFT_ORDER,
+  status: "IN_PROGRESS" as const,
+  delivered: true,
+};
+
 const IN_PROGRESS_ORDER = {
   ...DRAFT_ORDER,
   status: "IN_PROGRESS" as const,
@@ -76,6 +82,15 @@ describe("OrderBuilder (T66, RF-3/4/5/6/7)", () => {
     await user.click(screen.getByRole("button", { name: /enviar pedido/i }));
 
     await waitFor(() => expect(sendOrder).toHaveBeenCalledWith(41));
+  });
+
+  it("shows an item's unit price with a thousands separator", async () => {
+    vi.mocked(getOrder).mockResolvedValue({
+      ...IN_PROGRESS_ORDER,
+      items: [{ ...IN_PROGRESS_ORDER.items[0], unit_price: "15000.00" }],
+    });
+    render(<OrderBuilder orderId={41} />);
+    expect(await screen.findByText(/\$15\.000,00/)).toBeInTheDocument();
   });
 
   it("adds a catalog item", async () => {
@@ -258,5 +273,28 @@ describe("OrderBuilder (T66, RF-3/4/5/6/7)", () => {
 
     await waitFor(() => expect(sendOrder).toHaveBeenCalled());
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+
+  it("shows 'Entregado' instead of 'En preparación' once delivered is marked (T81, RF-8)", async () => {
+    vi.mocked(getOrder).mockResolvedValue(DELIVERED_ORDER);
+    render(<OrderBuilder orderId={41} />);
+    expect(await screen.findByText("Entregado")).toBeInTheDocument();
+    expect(screen.queryByText("En preparación")).not.toBeInTheDocument();
+  });
+
+  it("still shows 'En preparación' while not yet delivered (T81, RF-8)", async () => {
+    vi.mocked(getOrder).mockResolvedValue(IN_PROGRESS_ORDER);
+    render(<OrderBuilder orderId={41} />);
+    expect(await screen.findByText("En preparación")).toBeInTheDocument();
+  });
+
+  it("still shows 'Cobrado' for a charged order, even if delivered (T81, RF-8)", async () => {
+    vi.mocked(getOrder).mockResolvedValue({
+      ...DELIVERED_ORDER,
+      status: "CHARGED",
+    });
+    render(<OrderBuilder orderId={41} />);
+    expect(await screen.findByText("Cobrado")).toBeInTheDocument();
+    expect(screen.queryByText("Entregado")).not.toBeInTheDocument();
   });
 });

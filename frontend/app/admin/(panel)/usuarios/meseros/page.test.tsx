@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 
 vi.mock("@/lib/api/usuarios", () => ({
+  listMeseros: vi.fn().mockResolvedValue([]),
   createMesero: vi.fn(),
   resetMeseroPin: vi.fn(),
   deactivateMesero: vi.fn(),

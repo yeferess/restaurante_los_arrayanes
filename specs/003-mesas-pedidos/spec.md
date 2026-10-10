@@ -153,6 +153,9 @@ arman los pedidos), y respeta las reglas 4 y 5 de
   las mismas reglas de RF-3 y RF-4.
 - Si el pedido ya está "cobrado" o "anulado", entonces el sistema deberá
   rechazar cualquier adición de ítems.
+- La transición real de "borrador" a "en preparación" (no un reenvío sin
+  efecto) es también el momento en que el sistema asigna el número del
+  día del pedido (RF-14).
 
 ### RF-6 — Anulación de ítems
 
@@ -199,6 +202,15 @@ arman los pedidos), y respeta las reglas 4 y 5 de
   marcar o desmarcar "entregado" (deja de ser relevante).
 - El sistema deberá siempre ofrecer este control como una acción rápida
   (un botón) desde la lista de pedidos.
+- El sistema deberá mostrar al mesero "Entregado" como etiqueta visible
+  del pedido mientras su estado principal sea "en preparación" y esté
+  marcado como entregado — en vez de "en preparación" —, sin que esto
+  constituya un quinto estado del pedido: sigue siendo "en preparación"
+  para todo efecto de negocio (adiciones, anulación de ítems,
+  corrección de mesa, cobro — RF-5, RF-6, RF-7, RF-9 — siguen
+  funcionando exactamente igual, sin exigir ni verse afectados por este
+  indicador). En "borrador", "cobrado" o "anulado", la etiqueta visible
+  no cambia por este indicador.
 
 ### RF-9 — Cobro del pedido
 
@@ -263,11 +275,68 @@ arman los pedidos), y respeta las reglas 4 y 5 de
   los pedidos que él mismo creó.
 - El sistema deberá siempre impedir que un mesero consulte el contenido
   (ítems, notas, total) de un pedido que no sea suyo; de un pedido ajeno
-  solo ve el estado de la mesa asociada.
+  solo ve el estado de la mesa asociada. El número del día (RF-14) no se
+  considera parte de ese contenido restringido: cualquier mesero
+  autenticado puede verlo junto al estado de la mesa, sea o no el dueño
+  del pedido.
 - El sistema deberá siempre restringir a admin las acciones de cobro
   (RF-9) y anulación de pedido completo (RF-11).
 - El sistema deberá siempre permitir a cualquier mesero autenticado
   liberar una mesa pagada (RF-10), sin restricción de dueño.
+
+### RF-14 — Número del día
+
+- Además de su identificador interno (único global, creciente, inmutable
+  — la llave que usan la base de datos, la API, y el futuro módulo de
+  estadísticas), el sistema deberá asignar a cada pedido enviado un
+  "número del día": un entero que se reinicia a 1 cada día a las 00:00
+  hora local del restaurante (zona horaria `America/Bogota`), único
+  entre los pedidos de ese mismo día, pero no entre días distintos.
+- El sistema deberá asignar el número del día exactamente en el momento
+  en que un pedido pasa de "borrador" a "en preparación" (RF-5) — nunca
+  antes. Un pedido que se queda en "borrador" (incluido uno que nunca
+  llega a enviarse) nunca consume un número del día.
+- El sistema deberá garantizar que dos envíos casi simultáneos reciban
+  siempre números del día distintos entre sí, sin importar en qué orden
+  terminen de procesarse sus respectivas solicitudes. Lo único
+  garantizado es que un número nunca se repite dentro del mismo día: si
+  una asignación falla a mitad de proceso (por ejemplo, una caída del
+  servidor), el número siguiente puede dejar un hueco en la secuencia de
+  ese día (ej. 5, 6, 8), sin que el sistema intente rellenarlo después.
+- Una vez asignado, el sistema deberá tratar el número del día de un
+  pedido como inmutable: las adiciones (RF-5), las anulaciones de ítem o
+  de pedido completo (RF-6, RF-11), y la corrección de mesa (RF-7) que
+  ocurran después nunca generan ni consumen un número del día nuevo —
+  siguen mostrando el mismo número que el pedido ya tenía desde que se
+  envió. Si el pedido se anula por completo (RF-11), su número del día
+  queda consumido de forma permanente: nunca se reutiliza en un pedido
+  posterior enviado ese mismo día.
+- El sistema deberá mostrar siempre el número del día con el formato
+  "N° " seguido del entero simple, sin ceros a la izquierda (ej.
+  "N° 7"), junto con la fecha y hora exactas en que el pedido fue
+  enviado (RF-5), con menor jerarquía visual que el número. Esta regla
+  aplica de forma general a cualquier pantalla donde se identifique un
+  pedido ante mesero, admin o cocina; las que siguen son ejemplos de las
+  pantallas que existen hoy, no una lista cerrada: la lista de pedidos
+  del mesero, el panel de pedidos entrantes del admin, el detalle de un
+  pedido, y el consolidado de cobro ([005-cobro](../005-cobro/spec.md)).
+  Excepción: el ticket de cocina impreso
+  ([004-impresion-cocina](../004-impresion-cocina/spec.md)) queda exento
+  de la jerarquía visual — al imprimirse en texto plano de un solo
+  estilo (004-RF-7), ahí el número y la fecha/hora se muestran con el
+  mismo tamaño de letra.
+- El sistema nunca deberá mostrar el identificador interno de un pedido
+  como texto visible/renderizado (etiquetas, listas, detalle, ticket) en
+  ninguna pantalla de mesero, admin o cocina — queda reservado para la
+  base de datos, la API, y el futuro módulo de estadísticas, que siempre
+  deberá usarlo como llave, nunca el número del día. Esta restricción no
+  aplica a las rutas (URLs) ni a los payloads de la API REST del propio
+  sistema, que sí pueden seguir usando el identificador interno como
+  identificador de recurso (constitución, regla 3).
+- Los pedidos ya enviados antes de desplegar este cambio no deberán
+  tener un número del día asignado retroactivamente; la numeración
+  empieza limpia desde el primer pedido que se envíe después del
+  despliegue.
 
 ## Requisitos no funcionales
 
@@ -283,6 +352,12 @@ arman los pedidos), y respeta las reglas 4 y 5 de
   y rechazar la segunda por precondición de estado ya no cumplida (mismo
   rechazo ya definido para ese caso en cada RF), sin necesitar un
   mecanismo de bloqueo adicional.
+- Ante dos envíos casi simultáneos de pedidos distintos (RF-14), el
+  sistema deberá garantizar que ambos reciban número del día — nunca
+  rechazar uno de los dos por esta causa; a diferencia del punto
+  anterior, aquí ambas solicitudes tienen éxito, solo se asegura que su
+  número del día nunca se repita (no que sean estrictamente
+  consecutivos, ver RF-14).
 
 ## Casos límite
 
@@ -308,6 +383,14 @@ arman los pedidos), y respeta las reglas 4 y 5 de
   (rechazado).
 - Se marca/desmarca "Entregado" repetidamente, en cualquier estado del
   pedido → RF-8 (siempre permitido, sin motivo).
+- Un pedido "en preparación" marcado como entregado (etiqueta visible
+  "Entregado") se cobra → RF-8, RF-9 (la etiqueta visible pasa a
+  "Cobrado"; el indicador "entregado" no se pierde, solo deja de
+  mostrarse mientras el pedido esté cobrado).
+- Se anula un cobro de un pedido que seguía marcado como entregado
+  (005-cobro RF-6) → RF-8 (el pedido vuelve a "en preparación" y su
+  etiqueta visible vuelve a mostrar "Entregado", porque el indicador
+  nunca se modificó).
 - El admin sube el número de mesas → RF-1 (se crean las mesas nuevas,
   todas libres).
 - El admin baja el número de mesas y alguna de las que se eliminarían no
@@ -340,6 +423,37 @@ arman los pedidos), y respeta las reglas 4 y 5 de
 - Un producto del catálogo se elimina (002-gestion-menu RF-5) después de
   haberse agregado a un pedido activo → sin efecto: la línea del pedido
   ya conserva su propia copia de nombre y precio (RF-3).
+- Un pedido se envía a las 23:59:59 hora local y otro un minuto después
+  (00:00:00 del día siguiente) → RF-14 (el primero conserva el último
+  número de su día; el segundo arranca en 1, aunque entre ambos solo
+  haya pasado un minuto real).
+- Dos meseros envían su pedido casi al mismo tiempo → RF-14 (ambos
+  reciben número del día, siempre distintos entre sí; nunca se repiten,
+  aunque un fallo a mitad de proceso pueda dejar un hueco en la
+  secuencia).
+- Se agrega una adición, o se anula un ítem o el pedido completo, sobre
+  un pedido ya enviado → RF-14 (sigue mostrando el mismo número del día
+  que ya tenía; nunca genera uno nuevo).
+- Un pedido se queda en "borrador" y nunca se envía → RF-14 (nunca llega
+  a tener número del día).
+- Un pedido ya estaba enviado antes de desplegar el número del día → RF-14
+  (no se le asigna uno retroactivamente; queda sin número de forma
+  permanente).
+- Un pedido se envía antes de medianoche y sigue "en preparación" cuando
+  cruza la medianoche hora local, recibiendo una adición o anulación ya
+  en el día siguiente → RF-14 (sigue mostrando el número y la fecha/hora
+  de envío del día anterior; no adopta un número del nuevo día).
+- Por el caso anterior, un pedido de ayer que sigue activo pasada la
+  medianoche puede coincidir en número con un pedido de hoy (ej. ambos
+  "N° 1") mientras ambos están visibles a la vez en una misma lista →
+  RF-14 (se distinguen únicamente por la fecha/hora que acompaña al
+  número, nunca por el número solo).
+- Se corrige la mesa (RF-7) de un pedido que ya tiene número del día
+  asignado → RF-14 (el número y su fecha/hora de envío no cambian).
+- Se anula por completo un pedido que ya tenía número del día asignado
+  → RF-14 (ese número queda consumido de forma permanente para ese día;
+  el siguiente pedido enviado recibe el que sigue en la secuencia, nunca
+  el del pedido anulado).
 
 ## Fuera de alcance
 
@@ -369,6 +483,14 @@ arman los pedidos), y respeta las reglas 4 y 5 de
 - Una vista en tiempo real tipo dashboard para el admin sobre todas las
   mesas/pedidos — no fue solicitada para este módulo (a diferencia de la
   propagación en tiempo real del menú en 002-gestion-menu).
+- Mostrar o usar el identificador interno del pedido en cualquier
+  pantalla de mesero, admin o cocina (RF-14) — nunca se muestra; solo
+  existe en la base de datos, la API y el futuro módulo de estadísticas.
+- Asignar número del día retroactivamente a pedidos ya enviados antes de
+  este cambio (RF-14) — quedan sin número, de forma permanente.
+- El futuro módulo de estadísticas en sí (qué reportes existen, cómo se
+  calculan) — aquí solo se fija que, cuando exista, deberá usar siempre
+  el identificador interno como llave (RF-14).
 
 ## Criterios de finalización
 
@@ -388,7 +510,9 @@ arman los pedidos), y respeta las reglas 4 y 5 de
   hacia una mesa libre; no puede hacerlo sobre pedidos ajenos ni sobre
   pedidos ya cobrados.
 - Un mesero puede marcar y desmarcar libremente el indicador "Entregado"
-  desde la lista de pedidos, en cualquier estado del pedido.
+  desde la lista de pedidos, en cualquier estado del pedido; mientras el
+  pedido esté "en preparación", la etiqueta visible pasa a mostrar
+  "Entregado" en vez de "en preparación".
 - Solo un admin puede cobrar un pedido (mesa ocupada → pagada) y anular
   un pedido completo con motivo; un mesero no puede hacer ninguna de las
   dos cosas.
@@ -404,6 +528,11 @@ arman los pedidos), y respeta las reglas 4 y 5 de
 - Un mesero no puede ver el contenido de un pedido que no sea suyo, solo
   el estado de la mesa asociada.
 - Ningún endpoint de mesas o pedidos funciona sin sesión autenticada.
+- Cada pedido enviado recibe un número del día único dentro de su día
+  (reiniciando a 1 cada medianoche, hora de Bogotá), que no cambia con
+  adiciones ni anulaciones posteriores; el identificador interno nunca
+  aparece en pantalla, solo el número del día junto con la fecha/hora de
+  envío.
 
 ## Dudas abiertas
 
@@ -449,3 +578,58 @@ De la revisión de QA posterior, quedaron resueltas y ya incorporadas:
 - La concurrencia entre solicitudes que dependen del mismo estado de
   mesa se resuelve con "gana la primera, la segunda se rechaza por
   precondición" (Requisitos no funcionales).
+
+De la ronda de "número del día" (nuevo requisito posterior), quedaron
+resueltas y ya incorporadas:
+
+- Las adiciones y las anulaciones (de ítem o de pedido completo) sobre
+  un pedido ya enviado nunca generan un número del día nuevo; siempre
+  muestran el que el pedido ya tenía (RF-14).
+- Los pedidos ya enviados antes de este cambio se quedan sin número del
+  día; no hay migración retroactiva (RF-14).
+- El identificador interno deja de mostrarse en toda la interfaz; solo
+  se usa internamente y en el futuro módulo de estadísticas (RF-14).
+- La zona horaria para calcular el reinicio diario es `America/Bogota`
+  (RF-14).
+
+De la auditoría QA posterior sobre el "número del día", quedaron
+resueltas y ya incorporadas:
+
+- El ticket de cocina impreso queda exento de la jerarquía visual entre
+  número y fecha/hora: se imprime con el mismo tamaño de letra para
+  ambos, al ser texto plano de un solo estilo (RF-14, 004-RF-7).
+- La lista de pantallas de RF-14 es ilustrativa, no exhaustiva: la regla
+  de usar el número del día (nunca el identificador interno) aplica a
+  cualquier pantalla donde se identifique un pedido ante mesero, admin o
+  cocina, incluidas las que se creen a futuro (RF-14).
+- El número del día se muestra con el formato "N° " seguido del entero
+  simple, sin ceros a la izquierda (ej. "N° 7") (RF-14).
+- La garantía de "distintos" no exige una secuencia sin huecos: un fallo
+  a mitad de la asignación puede dejar un hueco en la numeración de ese
+  día, sin que el sistema intente rellenarlo (RF-14).
+
+De la segunda ronda de QA (contradicciones y casos límite sobre el
+"número del día"), quedaron resueltas y ya incorporadas:
+
+- La prohibición de mostrar el identificador interno aplica solo a
+  texto visible/renderizado; no restringe las URLs ni los payloads de
+  la propia API REST, que siguen usándolo como identificador de recurso
+  (RF-14).
+- El número del día de un pedido ajeno sí es visible para cualquier
+  mesero autenticado (no se considera "contenido" restringido por
+  RF-13); solo el resto del contenido del pedido sigue vedado al que no
+  es su dueño (RF-13, RF-14).
+- El número del día de un pedido anulado nunca se reutiliza: queda
+  consumido de forma permanente para ese día (RF-14).
+- Asignar el número del día no se registra como una acción trazable
+  aparte (RF-12): es un efecto automático del envío del pedido (RF-5),
+  que ya registra quién y cuándo lo envió.
+
+De la ronda sobre la etiqueta visible de "Entregado" (RF-8), quedó
+resuelto y ya incorporado:
+
+- "Entregado" sigue siendo un indicador booleano independiente a nivel
+  de negocio (no gatilla ni bloquea ninguna otra acción); lo único
+  nuevo es que, mientras el pedido esté "en preparación", su etiqueta
+  visible pasa a mostrar "Entregado" en vez de "en preparación" — no se
+  agrega un quinto estado real del pedido (RF-8).

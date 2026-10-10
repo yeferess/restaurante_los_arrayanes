@@ -4,6 +4,7 @@ import {
   resizeTables,
   releaseTable,
   createOrder,
+  deleteOrder,
   listMyOrders,
   listIncomingOrders,
   getOrder,
@@ -115,6 +116,20 @@ describe("lib/api/orders (T62, RF-1 a RF-11)", () => {
     await listTables();
     const [, init] = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0];
     expect((init?.headers as Record<string, string>)["X-CSRFToken"]).toBeUndefined();
+  });
+
+  it("deleteOrder deletes /api/pedidos/{id} and propagates a 409", async () => {
+    mockOk(undefined, 204);
+    await deleteOrder(41);
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringContaining("/api/pedidos/41"),
+      expect.objectContaining({ method: "DELETE" })
+    );
+
+    mockError({ detail: "Solo se puede eliminar un pedido en borrador." }, 409);
+    await expect(deleteOrder(41)).rejects.toEqual({
+      detail: "Solo se puede eliminar un pedido en borrador.",
+    });
   });
 
   it("listMyOrders gets /api/pedidos/mios", async () => {

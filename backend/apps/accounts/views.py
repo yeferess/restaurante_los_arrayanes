@@ -149,9 +149,16 @@ def _mesero_payload(user):
 
 
 class CreateMeseroView(APIView):
-    """POST /api/usuarios/meseros (RF-2). Admin-only."""
+    """GET/POST /api/usuarios/meseros (RF-2). Admin-only.
+
+    GET lists every mesero (active and inactive) — the admin panel uses
+    this to offer a dropdown instead of asking for a raw id."""
 
     permission_classes = [IsAdmin]
+
+    def get(self, request):
+        meseros = User.objects.filter(role=User.Role.MESERO).order_by("username")
+        return Response([_mesero_payload(m) for m in meseros])
 
     def post(self, request):
         serializer = CreateMeseroSerializer(data=request.data)

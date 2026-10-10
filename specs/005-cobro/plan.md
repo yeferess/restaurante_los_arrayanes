@@ -204,7 +204,8 @@ web. Dos vistas nuevas, ambas dentro del panel de admin.
 
 ```
 ┌─────────────────────────────────────┐
-│  Cobrar pedido #41 — Mesa 5          │
+│  Cobrar N° 7 — Mesa 5                │
+│  Enviado 10/03 20:15                 │ ← menor jerarquía visual (003-RF-14)
 ├─────────────────────────────────────┤
 │  2x Limonada natural         $9.00   │
 │  1x Sancocho de gallina      $20.00  │
@@ -218,6 +219,16 @@ web. Dos vistas nuevas, ambas dentro del panel de admin.
 │          [ Cancelar ]  [ Cobrar ]    │
 └─────────────────────────────────────┘
 ```
+
+`N° 7` y `Enviado 10/03 20:15` no son campos propios de este módulo:
+vienen del `numero_dia`/`enviado_en` que 003 (RF-14, plan sección 3) ya
+agrega a todo payload de pedido — este modal solo los lee del mismo
+objeto `order` que recibe, igual que ya lee `items`/`total` (RF-4). El
+identificador interno (`order.id`) nunca se renderiza en este modal;
+sigue viajando en el payload (lo usa `ChargeOrderModal` para construir
+la URL de `POST /api/pedidos/{id}/cobrar`), consistente con que RF-14
+solo prohíbe mostrarlo como texto, no usarlo como identificador de
+recurso.
 
 ### Panel "Opciones de pago" (gestión del catálogo — RF-2)
 
@@ -382,6 +393,10 @@ esta sección exige rol admin (RF-8).
 `/entrantes`, y a las dos respuestas de arriba): `null` si el pedido no
 está "cobrado"; si lo está, `{"account_name", "amount", "charged_by",
 "charged_at"}` — el cobro `ACTIVE` vigente de ese pedido (RF-3, RF-7).
+Este módulo no agrega ningún campo propio para identificar el pedido en
+el consolidado: `numero_dia`/`enviado_en` (RF-4) ya vienen en el mismo
+payload de pedido por `OrderSerializer` (003, plan sección 3, RF-14) —
+`apps.payments` los lee, nunca los calcula ni los duplica.
 
 ---
 
@@ -480,6 +495,11 @@ Cumpliendo la regla 6 de la constitución.
   test.
 - `GET /api/pedidos/{id}` (y `/mios`, `/entrantes`): `active_payment`
   aparece `null` antes de cobrar, y con los datos correctos después.
+- RF-4, 003-RF-14: la respuesta de `POST /api/pedidos/{id}/cobrar`
+  incluye `numero_dia`/`enviado_en` del pedido cobrado (ya puestos por
+  003, no por este módulo); con un pedido sin número del día (enviado
+  antes de este cambio), el cobro igual procede con esos campos en
+  blanco.
 - Ciclo completo: cobrar → anular → volver a cobrar con otra cuenta →
   el historial conserva ambos `Payment` (uno `VOIDED`, uno `ACTIVE`) sin
   que el primero se modifique.
@@ -499,7 +519,7 @@ Cumpliendo la regla 6 de la constitución.
 | RF-1 | Sección 1 (`ChargeOrderView` → `apps.payments.services.charge_order`), Sección 4 (`UniqueConstraint`, condición de carrera), Sección 5 (pseudocódigo) |
 | RF-2 | Sección 2 (`PaymentAccount`, migración de "Efectivo"), Sección 3 (panel de cuentas), Sección 5 (`create_account`/`delete_account`), Sección 6 (`/api/cuentas-pago`) |
 | RF-3 | Sección 2 (`Payment`), Sección 5 (`charge_order`), Sección 6 (`active_payment`) |
-| RF-4 | Sección 3 (modal de cobro), Sección 5 (cálculo de `total`) |
+| RF-4 | Sección 3 (modal de cobro, `numero_dia`/`enviado_en` heredados de 003-RF-14), Sección 5 (cálculo de `total`), Sección 6 (`active_payment`), Sección 8 |
 | RF-5 | Sección 5 (`charge_order`: `order.status`, `table.status`) |
 | RF-6 | Sección 2 (`Payment.status`/`voided_*`), Sección 3 (botón "Anular cobro"), Sección 5 (`void_charge`), Sección 6 (`/cobro/anular`), Decisión técnica 3 y 6 |
 | RF-7 | Sección 2 (`unique_active_payment_per_order`), Sección 4 |

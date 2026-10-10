@@ -45,6 +45,8 @@ class Order(models.Model):
     )
     delivered = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
+    daily_number = models.PositiveIntegerField(null=True, blank=True)
+    sent_at = models.DateTimeField(null=True, blank=True)
 
     def __str__(self):
         return f"Order {self.id} (table {self.table_number})"
@@ -115,3 +117,15 @@ class OrderAction(models.Model):
 
     def __str__(self):
         return f"{self.action_type} on order {self.order_id} @ {self.timestamp}"
+
+
+class DailyOrderCounter(models.Model):
+    """Per-local-date sequence for `Order.daily_number` (RF-14). One row
+    per day, created lazily the first time an order is sent that day —
+    see apps/orders/services.py for how it's incremented under a lock."""
+
+    local_date = models.DateField(primary_key=True)
+    last_number = models.PositiveIntegerField(default=0)
+
+    def __str__(self):
+        return f"{self.local_date}: {self.last_number}"

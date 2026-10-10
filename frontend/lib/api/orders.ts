@@ -9,6 +9,7 @@ export type TableStatus = "FREE" | "OCCUPIED" | "PAID";
 export type Table = {
   number: number;
   status: TableStatus;
+  active_order_daily_number: number | null;
 };
 
 export type OrderStatus = "DRAFT" | "IN_PROGRESS" | "CHARGED" | "VOIDED";
@@ -44,6 +45,8 @@ export type Order = {
   has_pending_print: boolean;
   print_warning?: string | null;
   active_payment: ActivePayment | null;
+  daily_number: number | null;
+  sent_at: string | null;
 };
 
 export function listTables(): Promise<Table[]> {
@@ -80,6 +83,12 @@ export function listIncomingOrders(): Promise<Order[]> {
 
 export function getOrder(orderId: number): Promise<Order> {
   return requestJson<Order>(`/api/pedidos/${orderId}`);
+}
+
+export function deleteOrder(orderId: number): Promise<void> {
+  return requestJson<void>(`/api/pedidos/${orderId}`, {
+    method: "DELETE",
+  });
 }
 
 export function addItem(

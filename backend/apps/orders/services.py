@@ -4,16 +4,41 @@ Kept free of HTTP/request concerns so it can be unit tested directly
 (see specs/003-mesas-pedidos/plan.md, sections 1 and 6).
 """
 
+import threading
+
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 from django.core.exceptions import ValidationError
+from django.db import transaction
+from django.utils import timezone
 
 from apps.menu.models import Product
 from apps.orders.consumers import ORDERS_GROUP_NAME
-from apps.orders.models import Order, OrderAction, OrderItem, Table
+from apps.orders.models import DailyOrderCounter, Order, OrderAction, OrderItem, Table
 
 ITEM_NAME_MAX_LENGTH = 100
 NOTE_MAX_LENGTH = 200
+
+# RF-14: a single process-wide lock serializes the read-increment-save
+# cycle on DailyOrderCounter, same pattern already used by
+# kitchen_printing's _print_lock for its own single shared resource —
+# see specs/003-mesas-pedidos/plan.md, sección 4.1.
+_daily_number_lock = threading.Lock()
+
+
+def _assign_daily_number(order):
+    """RF-14: assign (daily_number, sent_at) exactly once. Must be
+    called before order.save() inside the same transaction as the rest
+    of send_order's changes, so a failure rolls back both together."""
+    with _daily_number_lock:
+        local_date = timezone.localdate()
+        counter, _ = DailyOrderCounter.objects.get_or_create(
+            local_date=local_date, defaults={"last_number": 0}
+        )
+        counter.last_number += 1
+        counter.save(update_fields=["last_number"])
+        order.daily_number = counter.last_number
+        order.sent_at = timezone.now()
 
 
 def _register_print_event(order, ticket_type):
@@ -79,6 +104,18 @@ def remove_item(order, item):
             code="not_draft",
         )
     item.delete()
+
+
+def delete_order(order):
+    """RF-2: discard a draft order outright — no reason, no trace, same
+    philosophy as remove_item. Never applies once the order was sent
+    (use void_order, admin-only, after that point)."""
+    if order.status != Order.Status.DRAFT:
+        raise ValidationError(
+            "Solo se puede eliminar un pedido en borrador.", code="not_draft"
+        )
+    _free_table(order.table_number)
+    order.delete()
 
 
 def register_action(
@@ -218,8 +255,10 @@ def send_order(order):
     if not order.items.filter(is_voided=False).exists():
         raise ValidationError("El pedido no tiene ningún ítem.", code="empty")
 
-    order.status = Order.Status.IN_PROGRESS
-    order.save(update_fields=["status"])
+    with transaction.atomic():
+        order.status = Order.Status.IN_PROGRESS
+        _assign_daily_number(order)
+        order.save(update_fields=["status", "daily_number", "sent_at"])
     notify_orders_changed()
     order.print_warning = _register_print_event(order, "NEW_ORDER")
     return order

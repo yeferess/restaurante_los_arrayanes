@@ -8,9 +8,30 @@ from apps.payments.models import Payment
 
 
 class TableSerializer(serializers.ModelSerializer):
+    active_order_daily_number = serializers.SerializerMethodField()
+
     class Meta:
         model = Table
-        fields = ["number", "status"]
+        fields = ["number", "status", "active_order_daily_number"]
+
+    def get_active_order_daily_number(self, obj):
+        """RF-14 (interacción con RF-13): el número del día de un pedido
+        no es "contenido" restringido — cualquier mesero autenticado lo
+        ve, sea o no el dueño. `None` si la mesa está libre, o si su
+        pedido activo todavía no tiene número (caso transitorio)."""
+        if obj.status == Table.Status.FREE:
+            return None
+        target_status = (
+            Order.Status.IN_PROGRESS
+            if obj.status == Table.Status.OCCUPIED
+            else Order.Status.CHARGED
+        )
+        order = (
+            Order.objects.filter(table_number=obj.number, status=target_status)
+            .order_by("-created_at")
+            .first()
+        )
+        return order.daily_number if order else None
 
 
 class OrderItemSerializer(serializers.ModelSerializer):
@@ -47,6 +68,8 @@ class OrderSerializer(serializers.ModelSerializer):
             "total",
             "has_pending_print",
             "active_payment",
+            "daily_number",
+            "sent_at",
         ]
 
     def get_total(self, obj):

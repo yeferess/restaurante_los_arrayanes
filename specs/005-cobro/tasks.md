@@ -248,3 +248,23 @@ una condición verificable de "Hecho cuando".
   eliminar), permite crear una cuenta nueva con un nombre, y permite
   eliminar una cuenta sin uso; muestra el error tal cual si la API
   rechaza la eliminación de una cuenta ya usada.
+
+---
+
+## Fase 10 — Número del día (RF-4, 003-RF-14)
+
+- [x] **T31 — `ChargeOrderModal.tsx` muestra el número del día**
+  RF: RF-4, 003-RF-14
+  Hecho cuando: el modal de cobro muestra "N° {numero_dia}" en vez de
+  "Pedido #{id}" en su encabezado, con la fecha/hora de envío
+  (`enviado_en`) en menor jerarquía visual debajo; con un pedido sin
+  número del día (`numero_dia: null`, enviado antes de este cambio),
+  ese campo se muestra en blanco sin romper el modal ni bloquear el
+  cobro.
+
+- [x] **T32 — Verificar que el indicador de cobro no usa el id interno**
+  RF: RF-4, 003-RF-14
+  Hecho cuando: ningún texto visible del panel de "Pedidos entrantes" ni
+  del indicador "con qué cuenta se pagó" (`active_payment`) usa
+  `order.id`; ambos identifican el pedido por `numero_dia`, igual que ya
+  hace `MyOrdersList`/`IncomingOrdersPanel` de 003 (T80).

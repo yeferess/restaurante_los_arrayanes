@@ -86,9 +86,18 @@ sobre sus propios pedidos.
 - Todo ticket deberá llevar un encabezado con el tipo de evento que lo
   originó y el número de mesa, con el formato "PEDIDO NUEVO – Mesa N",
   "ADICIÓN – Mesa N" o "ANULACIÓN – Mesa N" según corresponda.
-- Todo ticket deberá incluir además: el número de mesa, el id del
-  pedido, la hora del intento de impresión, y el nombre de usuario del
-  mesero que ejecutó la acción.
+- Todo ticket deberá incluir además: el número de mesa, el número del
+  día del pedido junto con la fecha y hora en que fue enviado
+  ([003-mesas-pedidos RF-14](../003-mesas-pedidos/spec.md)) — nunca el
+  identificador interno —, la hora del intento de impresión, y el
+  nombre de usuario del mesero que ejecutó la acción. El número del día
+  y la fecha/hora de envío se imprimen con el mismo tamaño de letra: el
+  ticket queda exento de la jerarquía visual que 003-RF-14 exige en
+  pantalla, al imprimirse en texto plano de un solo estilo (RF-7).
+- Si el pedido no tiene número del día asignado (porque se envió antes
+  de que ese requisito existiera, ver 003-mesas-pedidos RF-14), el
+  sistema deberá imprimir el ticket igual, mostrando ese dato en blanco
+  en su lugar — limitación transitoria y conocida, no un error.
 
 ### RF-3 — Contenido del ticket "PEDIDO NUEVO"
 
@@ -271,6 +280,11 @@ sobre sus propios pedidos.
 - Se reintenta imprimir un ticket cuyo pedido ya fue cobrado o anulado
   por completo desde el intento original → el sistema rechaza el
   reintento (RF-10).
+- Se imprime (o reintenta imprimir) el ticket de un pedido sin número
+  del día, por haberse enviado antes de que existiera ese requisito
+  (003-mesas-pedidos RF-14) → se imprime igual, con ese dato en blanco
+  (RF-2); limitación transitoria, desaparece sola conforme esos pedidos
+  se van cobrando o anulando.
 
 ## Fuera de alcance
 
@@ -340,6 +354,8 @@ sobre sus propios pedidos.
 - Ningún endpoint de este módulo funciona sin sesión autenticada, y solo
   el mesero dueño de un pedido puede reintentar la impresión de sus
   propios tickets.
+- Todo ticket muestra el número del día del pedido (con su fecha/hora de
+  envío) en vez del identificador interno, que nunca aparece en papel.
 
 ## Dudas abiertas
 
@@ -407,3 +423,20 @@ De la revisión de QA posterior, quedaron resueltas y ya incorporadas:
   puede reintentarlo), dos ítems fuera de carta con el mismo nombre y
   notas distintas en el mismo ticket, y el texto libre de una nota que
   contenga literalmente "***" (ver "Fuera de alcance").
+
+De la ronda de "número del día" (nuevo requisito posterior, ver
+003-mesas-pedidos RF-14), quedaron resueltas y ya incorporadas:
+
+- El ticket muestra el número del día del pedido junto con la fecha y
+  hora de envío, nunca el identificador interno (RF-2).
+- Un pedido sin número del día (enviado antes de este cambio) igual se
+  imprime, mostrando ese dato en blanco — limitación transitoria, no un
+  error (RF-2).
+
+De la auditoría QA posterior sobre el "número del día", quedó resuelto
+y ya incorporado:
+
+- El ticket impreso queda exento de la jerarquía visual entre número y
+  fecha/hora que 003-RF-14 exige en pantalla: ambos se imprimen con el
+  mismo tamaño de letra, al ser texto plano de un solo estilo (RF-2,
+  RF-7).

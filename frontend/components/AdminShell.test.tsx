@@ -57,6 +57,10 @@ describe("AdminShell", () => {
       "href",
       "/admin/pedidos"
     );
+    expect(screen.getByRole("link", { name: /estadísticas/i })).toHaveAttribute(
+      "href",
+      "/admin/estadisticas"
+    );
   });
 
   it("marks the current section as active", () => {

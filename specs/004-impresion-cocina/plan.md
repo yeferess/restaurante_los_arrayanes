@@ -176,6 +176,19 @@ colgante de 4 espacios (el ancho de `"99x "`) para que el nombre del
 ítem quede alineado en las líneas siguientes, nunca cortando una
 palabra a mitad.
 
+**Encabezado de identificación** (RF-2, 003-RF-14): cada ticket muestra
+el número del día del pedido con el formato "N° " + entero simple (sin
+ceros a la izquierda), la fecha y hora de envío, y la hora del intento
+de impresión — esta última es un dato distinto, ya existente desde
+antes de RF-14, y las dos conviven en el mismo ticket sin confundirse
+(cada una con su propia etiqueta). **Nunca** el identificador interno
+del pedido. Las dos marcas de tiempo se imprimen con el mismo tamaño de
+letra que el resto del ticket — texto plano de un solo estilo, sin la
+jerarquía visual que 003-RF-14 exige en pantalla (spec, excepción ya
+resuelta). Si el pedido no tiene número del día (enviado antes de este
+cambio), el campo se imprime en blanco en su lugar (003-RF-14, caso
+transitorio).
+
 **Bloque de notas** (RF-6): una línea por nota, con el marcador
 `*** NOTA (ítem): texto ***` en mayúsculas, envuelta con la misma regla
 de ajuste si no cabe en una línea.
@@ -190,8 +203,8 @@ emite el comando ESC/POS de cambio de color.
 ========================================
           PEDIDO NUEVO - MESA 5
 ========================================
-Pedido #41           10/03/26 20:15
-Mesero: cgarcia
+N° 7                  Enviado 10/03 20:15
+Mesero: cgarcia       Impreso 10/03 20:16
 ----------------------------------------
 *** NOTA (LIMONADA NATURAL):
     SIN AZUCAR ***
@@ -208,8 +221,8 @@ Mesero: cgarcia
 ========================================
             ADICION - MESA 5
 ========================================
-Pedido #41           10/03/26 20:32
-Mesero: cgarcia
+N° 7                  Enviado 10/03 20:15
+Mesero: cgarcia       Impreso 10/03 20:32
 ----------------------------------------
 1x Jugo de naranja
 1x Arroz con pollo gigante especial de
@@ -225,8 +238,8 @@ excede las 40 columnas.)
 ========================================
            ANULACION - MESA 5
 ========================================
-Pedido #41           10/03/26 20:40
-Mesero: cgarcia
+N° 7                  Enviado 10/03 20:15
+Mesero: cgarcia       Impreso 10/03 20:40
 ----------------------------------------
 1x Sancocho de gallina
     Motivo: cliente cambio de pedido
@@ -472,6 +485,17 @@ en cocina."` (error genérico al imprimir). Ningún otro texto distinto.
    solo confundiría al mesero. Descartado: seguir mostrando el badge
    igual, de forma puramente informativa.
 
+9. **El número del día y su fecha/hora de envío se imprimen con el
+   mismo tamaño de letra que el resto del ticket, sin ningún comando
+   ESC/POS de tamaño o negrita**, en vez de intentar replicar en papel
+   la jerarquía visual que 003-RF-14 exige en pantalla.
+   La spec (003-RF-14, ya resuelta) exime explícitamente al ticket
+   impreso de esa jerarquía: se imprime en texto plano de un solo estilo
+   (RF-7, decisión técnica 7 de este plan). `rendering.py` solo cambia
+   qué dato arma en el encabezado (`order.daily_number`/`order.sent_at`
+   en vez de `order.id`) — no necesita tocar `adapters.py` ni aprender
+   comandos ESC/POS nuevos.
+
 ---
 
 ## 8. Estrategia de tests
@@ -490,6 +514,12 @@ Cumpliendo la regla 6 de la constitución.
 - El primer ticket de un pedido (`desde = order.created_at`) incluye
   todos los ítems activos, aunque haya habido varias adiciones fallidas
   antes de la primera impresión exitosa.
+- RF-2, 003-RF-14: el encabezado muestra `"N° {daily_number}"` + fecha de
+  envío + hora del intento de impresión, nunca `order.id`; un pedido con
+  `daily_number=None` (enviado antes de este cambio) imprime ese campo
+  en blanco sin lanzar error; el campo de hora de envío y el de hora de
+  impresión no se confunden entre sí aunque sean valores distintos del
+  mismo ticket (ej. adición impresa minutos después del envío original).
 
 ### Unitarios — `services.py`
 
@@ -555,7 +585,7 @@ sí:
 | RF | Cubierto en |
 |----|--------------|
 | RF-1 | Sección 1 (llamadas desde `apps/orders/services.py`), Sección 5 (pseudocódigo `register_event_and_print`) |
-| RF-2 | Sección 3 (maquetas, encabezados y metadatos) |
+| RF-2 | Sección 3 (maquetas, encabezados y metadatos, encabezado de identificación con 003-RF-14), Decisión técnica 9, Sección 8 |
 | RF-3 | Sección 3 (maqueta "PEDIDO NUEVO"), Sección 5 (`desde = order.created_at` en el primer ticket) |
 | RF-4 | Sección 3 (maqueta "ADICIÓN") |
 | RF-5 | Sección 3 (maqueta "ANULACIÓN") |

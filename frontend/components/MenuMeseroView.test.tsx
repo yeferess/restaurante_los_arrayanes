@@ -39,6 +39,14 @@ describe("MenuMeseroView (T40, RF-6/7)", () => {
     expect(await screen.findByText(/limonada/i)).toBeInTheDocument();
   });
 
+  it("shows the price with a thousands separator", async () => {
+    vi.mocked(getMenu).mockResolvedValue([
+      { ...MENU[0], price: "15000.00" },
+    ]);
+    render(<MenuMeseroView />);
+    expect(await screen.findByText("$15.000,00")).toBeInTheDocument();
+  });
+
   it("subscribes to menu updates and refetches when notified", async () => {
     render(<MenuMeseroView />);
     await screen.findByText(/limonada/i);

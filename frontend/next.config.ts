@@ -6,7 +6,7 @@ const nextConfig: NextConfig = {
   // without Next.js silently forcing full page reloads on every client
   // interaction (its default cross-origin protection for the dev
   // server). See https://nextjs.org/docs/app/api-reference/config/next-config-js/allowedDevOrigins
-  allowedDevOrigins: ["192.168.101.10", "192.168.101.5"],
+  allowedDevOrigins: ["192.168.101.10", "192.168.101.5", "192.168.18.46"],
 };
 
 export default nextConfig;

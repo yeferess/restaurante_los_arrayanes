@@ -13,6 +13,7 @@ import {
   type ApiErrorBody,
 } from "@/lib/api/orders";
 import { getMenu, type Product } from "@/lib/api/menu";
+import { formatPrice } from "@/lib/format";
 import styles from "./OrderBuilder.module.css";
 
 const STATUS_LABEL: Record<Order["status"], string> = {
@@ -21,6 +22,16 @@ const STATUS_LABEL: Record<Order["status"], string> = {
   CHARGED: "Cobrado",
   VOIDED: "Anulado",
 };
+
+/** RF-8: same presentation rule as MyOrdersList.tsx — "entregado" is
+ * not a 5th real status, just the label shown while "en preparación"
+ * and delivered (plan.md, decisión técnica 10). */
+function displayStatus(order: Order): { label: string; isDelivered: boolean } {
+  if (order.status === "IN_PROGRESS" && order.delivered) {
+    return { label: "Entregado", isDelivered: true };
+  }
+  return { label: STATUS_LABEL[order.status], isDelivered: false };
+}
 
 function formatError(error: unknown): string {
   const detail = (error as ApiErrorBody)?.detail;
@@ -149,7 +160,13 @@ export function OrderBuilder({ orderId }: { orderId: number }) {
           </h1>
           <span className={styles.table}>Mesa {order.table_number}</span>
         </div>
-        <span className={styles.badge}>{STATUS_LABEL[order.status]}</span>
+        <span
+          className={`${styles.badge} ${
+            displayStatus(order).isDelivered ? styles.badgeDelivered : ""
+          }`}
+        >
+          {displayStatus(order).label}
+        </span>
       </div>
 
       {message && (
@@ -171,7 +188,7 @@ export function OrderBuilder({ orderId }: { orderId: number }) {
                 <div className={styles.itemInfo}>
                   <span className={styles.itemLine}>
                     <span className={styles.itemQty}>{item.quantity}x</span> {item.name} — $
-                    {item.unit_price}
+                    {formatPrice(item.unit_price)}
                   </span>
                   {item.note && <span className={styles.itemNote}>{item.note}</span>}
                   {item.is_voided && <span className={styles.itemVoidedTag}>Anulado</span>}

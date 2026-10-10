@@ -16,6 +16,10 @@ export type MeseroAccount = {
   created_at: string;
 };
 
+export function listMeseros(): Promise<MeseroAccount[]> {
+  return requestJson<MeseroAccount[]>("/api/usuarios/meseros");
+}
+
 export function createMesero(username: string, pin: string): Promise<MeseroAccount> {
   return requestJson<MeseroAccount>("/api/usuarios/meseros", {
     method: "POST",

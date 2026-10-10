@@ -36,6 +36,8 @@ const ORDER = {
   total: "9.00",
   has_pending_print: false,
   active_payment: null,
+  daily_number: 7,
+  sent_at: "2026-03-10T20:15:00Z",
 };
 
 const ACCOUNTS = [
@@ -60,11 +62,22 @@ describe("ChargeOrderModal (005-cobro, RF-1/3/4)", () => {
     render(
       <ChargeOrderModal order={ORDER} onClose={onClose} onCharged={onCharged} />
     );
-    expect((await screen.findAllByText(/9\.00/)).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText(/9,00/)).length).toBeGreaterThan(0);
     expect(screen.getByRole("option", { name: "Efectivo" })).toBeInTheDocument();
     expect(
       screen.getByRole("option", { name: "Nequi #1234" })
     ).toBeInTheDocument();
+  });
+
+  it("shows the total with a thousands separator", async () => {
+    render(
+      <ChargeOrderModal
+        order={{ ...ORDER, total: "20000.00" }}
+        onClose={onClose}
+        onCharged={onCharged}
+      />
+    );
+    expect(await screen.findByText("$20.000,00")).toBeInTheDocument();
   });
 
   it("charges the order and shows a confirmation with an undo option (T29, RF-6)", async () => {
@@ -184,6 +197,52 @@ describe("ChargeOrderModal (005-cobro, RF-1/3/4)", () => {
     expect(
       await screen.findByText("Este pedido no admite cobro en este momento.")
     ).toBeInTheDocument();
+  });
+
+  it("identifies the order by its daily number, not the internal id (T31, 003-RF-14)", async () => {
+    render(
+      <ChargeOrderModal order={ORDER} onClose={onClose} onCharged={onCharged} />
+    );
+    await screen.findByRole("option", { name: "Efectivo" });
+    expect(screen.getByText(/N° 7 — Mesa 5/)).toBeInTheDocument();
+    expect(screen.getByText(/\d{2}\/\d{2} \d{2}:\d{2}/)).toBeInTheDocument();
+    expect(screen.queryByText(/pedido 41/i)).not.toBeInTheDocument();
+  });
+
+  it("shows the daily number on the post-charge confirmation too", async () => {
+    const charged = {
+      ...ORDER,
+      status: "CHARGED" as const,
+      active_payment: {
+        account_name: "Efectivo",
+        amount: "9.00",
+        charged_by: "admin1",
+        charged_at: "2026-03-10T20:15:00Z",
+      },
+    };
+    vi.mocked(chargeOrder).mockResolvedValue(charged);
+    const user = userEvent.setup();
+    render(
+      <ChargeOrderModal order={ORDER} onClose={onClose} onCharged={onCharged} />
+    );
+    await screen.findByRole("option", { name: "Efectivo" });
+
+    await user.click(screen.getByRole("button", { name: /^cobrar$/i }));
+
+    expect(await screen.findByText(/N° 7 cobrado/)).toBeInTheDocument();
+    expect(screen.queryByText(/pedido 41/i)).not.toBeInTheDocument();
+  });
+
+  it("falls back to a blank daily number for a pre-upgrade order", async () => {
+    render(
+      <ChargeOrderModal
+        order={{ ...ORDER, daily_number: null, sent_at: null }}
+        onClose={onClose}
+        onCharged={onCharged}
+      />
+    );
+    await screen.findByRole("option", { name: "Efectivo" });
+    expect(screen.getByText(/Sin número — Mesa 5/)).toBeInTheDocument();
   });
 
   it("closes without charging on cancel", async () => {

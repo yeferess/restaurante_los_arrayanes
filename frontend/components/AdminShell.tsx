@@ -24,6 +24,7 @@ const SECTIONS: Array<{ label: string; items: Array<{ href: string; label: strin
     ],
   },
   { label: "", items: [{ href: "/admin/pedidos", label: "Pedidos" }] },
+  { label: "", items: [{ href: "/admin/estadisticas", label: "Estadísticas" }] },
 ];
 
 /** Shared nav shell for every /admin/(panel) screen: sidebar with every

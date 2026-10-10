@@ -53,6 +53,12 @@
   margin-top: 0.3rem;
 }
 
+.titleGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
 .orderLink {
   font-family: var(--font-geist-mono), monospace;
   font-size: 1.05rem;
@@ -62,6 +68,12 @@
 
 .orderLink:hover {
   color: var(--accent);
+}
+
+.sentAt {
+  font-size: 0.72rem;
+  font-weight: 400;
+  color: var(--muted);
 }
 
 .table {
@@ -92,6 +104,11 @@
 .badgeInProgress {
   background: var(--accent-soft);
   color: var(--accent-pressed);
+}
+
+.badgeDelivered {
+  background: var(--status-free-soft);
+  color: var(--status-free);
 }
 
 .badgeCharged {

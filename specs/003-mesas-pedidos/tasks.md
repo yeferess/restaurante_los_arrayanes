@@ -446,3 +446,120 @@ condición verificable de "Hecho cuando".
   recibir un evento de `ordersSocket.ts` o al presionar un botón
   manual, y permite cobrar un pedido o anular un pedido completo con
   motivo, reflejando los errores de T38-T39 en la UI.
+
+---
+
+## Fase 7 — Número del día (RF-14)
+
+- [x] **T69 — `TIME_ZONE` a `America/Bogota`**
+  RF: RF-14 (soporte)
+  Hecho cuando: `config/settings.py` tiene `TIME_ZONE = "America/Bogota"`
+  (antes `"UTC"`); `python manage.py check` no reporta errores; un test
+  confirma que `django.utils.timezone.localdate()` refleja la fecha de
+  Bogotá, no la de UTC, para un instante cercano a medianoche donde
+  ambas difieren.
+
+- [x] **T70 — Modelo `DailyOrderCounter`**
+  RF: RF-14
+  Hecho cuando: existe el modelo con `local_date` (`DateField`,
+  `primary_key=True`) y `last_number` (`PositiveIntegerField`, default
+  `0`), y la migración aplica sin errores.
+
+- [x] **T71 — Campos `daily_number`/`sent_at` en `Order`**
+  RF: RF-14
+  Hecho cuando: `Order` gana `daily_number`
+  (`PositiveIntegerField(null=True, blank=True)`) y `sent_at`
+  (`DateTimeField(null=True, blank=True)`); la migración aplica sin
+  errores; los pedidos ya existentes quedan con ambos campos en `None`
+  (sin backfill retroactivo).
+
+- [x] **T72 — `asignar_numero_del_dia()` con lock dedicado**
+  RF: RF-14
+  Hecho cuando: la función usa un `threading.Lock()` propio (distinto
+  del de `kitchen_printing`) para incrementar `DailyOrderCounter` de la
+  fecha local actual (`get_or_create` + `last_number += 1`) y asignar
+  `daily_number`/`sent_at = timezone.now()` al pedido; un test con dos
+  hilos llamándola "simultáneamente" confirma que nunca produce el
+  mismo número para el mismo día (mismo patrón que
+  `PrintLockSerializationTests` de 004).
+
+- [x] **T73 — Integrar la asignación en `send_order()`**
+  RF: RF-14
+  Hecho cuando: la transición real de "borrador" a "en preparación"
+  llama a `asignar_numero_del_dia()` dentro de la misma transacción,
+  antes de guardar; un reenvío sin efecto (pedido que ya no está en
+  "borrador") no la llama ni modifica los campos existentes; un pedido
+  que nunca se envía nunca los recibe.
+
+- [x] **T74 — Inmutabilidad ante adiciones/anulaciones/corrección de mesa**
+  RF: RF-14
+  Hecho cuando: agregar una adición, anular un ítem, anular el pedido
+  completo (manual o automático), o corregir la mesa de un pedido ya
+  enviado, dejan `daily_number` y `sent_at` exactamente iguales a como
+  quedaron en el envío original.
+
+- [x] **T75 — Serializar `numero_dia`/`enviado_en` en los payloads de pedido**
+  RF: RF-14
+  Hecho cuando: las respuestas de `POST /api/pedidos`, `POST
+  /api/pedidos/{id}/enviar`, `POST /api/pedidos/{id}/mesa`, `POST
+  /api/pedidos/{id}/entregado`, y `GET /api/pedidos/mios`, `/entrantes`,
+  `/{id}` incluyen `numero_dia` (entero o `null`) y `enviado_en` (ISO
+  datetime o `null`); el campo `id` interno sigue presente sin cambios
+  en todas ellas.
+
+- [x] **T76 — `numero_dia_pedido_activo` en `GET /api/mesas`**
+  RF: RF-14 (interacción con RF-13)
+  Hecho cuando: cada mesa "ocupada" o "pagada" en la respuesta incluye
+  el `daily_number` de su pedido activo, visible igual para el mesero
+  dueño y para cualquier otro mesero autenticado; una mesa "libre", o un
+  pedido activo todavía sin número (caso transitorio), devuelven `null`.
+
+- [x] **T77 — Unit tests de asignación e inmutabilidad (T72-T74)**
+  RF: RF-14
+  Hecho cuando: cubren primer pedido del día (`1`), segundo pedido
+  (`2`), reinicio en una fecha local distinta (mockeada), reenvío sin
+  efecto, inmutabilidad ante adiciones/anulaciones/corrección de mesa, y
+  la serialización concurrente de dos asignaciones casi simultáneas;
+  todos pasan.
+
+- [x] **T78 — Integration tests de `numero_dia`/`enviado_en`/
+  `numero_dia_pedido_activo` (T75-T76)**
+  RF: RF-14
+  Hecho cuando: cada endpoint tocado por T75 y T76 tiene al menos un
+  test confirmando `null` antes de enviar y los valores reales después;
+  un mesero ajeno recibe el `numero_dia_pedido_activo` de una mesa
+  ocupada por otro mesero, pero sigue recibiendo 403 al pedir el
+  contenido completo de ese pedido en `GET /api/pedidos/{id}`; todos
+  pasan.
+
+- [x] **T79 — Frontend: `TableGrid.tsx` muestra el número del día**
+  RF: RF-14
+  Hecho cuando: la cuadrícula de mesas del mesero muestra "N° {numero}"
+  junto al estado de cada mesa ocupada o pagada, usando
+  `numero_dia_pedido_activo`; no muestra nada en una mesa libre ni
+  cuando ese valor es `null`.
+
+- [x] **T80 — Frontend: título de pedido en `MyOrdersList.tsx` e
+  `IncomingOrdersPanel.tsx`**
+  RF: RF-14
+  Hecho cuando: el título de cada pedido en ambas listas pasa de
+  "Pedido {id}" a "N° {numero_dia}", con la fecha/hora de envío (texto
+  más pequeño, menor jerarquía visual) junto al número; ninguna de las
+  dos pantallas sigue mostrando el identificador interno como texto.
+
+---
+
+## Fase 8 — Etiqueta visible de "Entregado" (RF-8)
+
+- [x] **T81 — Badge de estado muestra "Entregado" cuando corresponda**
+  RF: RF-8
+  Hecho cuando: en `MyOrdersList.tsx` y en `OrderBuilder.tsx`, el badge
+  de estado que ve el mesero sigue esta regla sin tocar
+  `Order.status`/`Order.delivered` en el backend: "anulado" → "Anulado";
+  "cobrado" → "Cobrado" (sin importar `delivered`); "en preparación" con
+  `delivered=true` → "Entregado" (badge nuevo, color
+  `var(--status-free)`); "en preparación" con `delivered=false` → "En
+  preparación" (igual que hoy); "borrador" → "Borrador". Ningún
+  endpoint, servicio ni test de `apps.orders`/`apps.payments`/
+  `apps.kitchen_printing` cambia — la suite de backend sigue en
+  651/651.

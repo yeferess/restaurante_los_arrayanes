@@ -3,6 +3,7 @@ import { render, screen } from "@testing-library/react";
 
 vi.mock("@/lib/api/orders", () => ({
   listMyOrders: vi.fn().mockResolvedValue([]),
+  listTables: vi.fn().mockResolvedValue([]),
   setDelivered: vi.fn(),
   releaseTable: vi.fn(),
 }));

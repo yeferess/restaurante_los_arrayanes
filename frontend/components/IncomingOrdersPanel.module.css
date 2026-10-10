@@ -78,11 +78,23 @@
   margin-top: 0.3rem;
 }
 
+.titleGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
 .orderId {
   font-family: var(--font-geist-mono), monospace;
   font-size: 1.05rem;
   font-weight: 700;
   color: var(--ink);
+}
+
+.sentAt {
+  font-size: 0.72rem;
+  font-weight: 400;
+  color: var(--muted);
 }
 
 .table {

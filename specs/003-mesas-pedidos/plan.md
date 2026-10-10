@@ -20,10 +20,17 @@ contratos, pseudocódigo y decisiones justificadas.
   Next.js + SQLite; reutiliza el `ProtocolTypeRouter` y el
   `CHANNEL_LAYERS` en memoria que ya instaló y configuró
   [`002-gestion-menu`](../002-gestion-menu/plan.md) — no se agrega
-  infraestructura nueva.
+  infraestructura nueva. La asignación del número del día (RF-14,
+  sección 4.1) reutiliza el mismo patrón de `threading.Lock()` en
+  memoria del proceso que ya usa `kitchen_printing` (004) para
+  serializar el acceso a la impresora — nada de Redis ni de un servicio
+  externo de secuencias.
 - **Regla 2 (offline-first en LAN)**: todos los endpoints de mesas y
   pedidos son REST/WebSocket sobre la LAN local; ninguno depende de un
-  servicio externo.
+  servicio externo. El cálculo de "medianoche hora local" (RF-14) usa
+  `TIME_ZONE = "America/Bogota"` en `config/settings.py` (hoy `"UTC"`,
+  cambia como parte de esta implementación) y el reloj del propio
+  equipo — no consulta ningún servicio de hora externo.
 - **Regla 3 (contrato de API)**: Next.js nunca toca SQLite directamente;
   todo pasa por los endpoints de la sección 3 y el canal de la sección 4.
 - **Regla 4 (trazabilidad)**: el modelo `OrderAction` (sección 2) registra
@@ -50,7 +57,8 @@ contratos, pseudocódigo y decisiones justificadas.
 backend/
   apps/
     orders/                     # app dedicada a este módulo (RF-1..RF-13)
-      models.py                 # Table, Order, OrderItem, OrderAction
+      models.py                 # Table, Order, OrderItem, OrderAction,
+                                 # DailyOrderCounter (RF-14, sección 4.1)
       serializers.py            # 1 serializer por forma de respuesta de
                                  # la sección 3
       permissions.py            # reutiliza IsAdmin/IsMesero de
@@ -59,7 +67,8 @@ backend/
                                  # order.waiter)
       services.py                # lógica de negocio pura: resize de
                                  # mesas, crear pedido, agregar ítem,
-                                 # quitar/anular ítem, enviar, corregir
+                                 # quitar/anular ítem, enviar (asigna el
+                                 # número del día, RF-14), corregir
                                  # mesa, entregado, cobrar, liberar,
                                  # anular pedido — sin dependencias de
                                  # HTTP, testeable como unit test
@@ -74,6 +83,7 @@ backend/
         test_services_tables.py
         test_services_orders.py
         test_services_items.py
+        test_services_daily_number.py  # RF-14, sección 4.1
         test_views_tables.py
         test_views_orders.py
         test_views_items.py
@@ -119,10 +129,17 @@ frontend/
                                       # este plan)
   components/
     TableCountSettings.tsx            # RF-1 (admin)
-    TableGrid.tsx                      # RF-1 (lectura), RF-2 (mesero)
+    TableGrid.tsx                      # RF-1 (lectura), RF-2 (mesero);
+                                        # + "N° {numero_dia_pedido_activo}"
+                                        # junto al estado de cada mesa (RF-14)
     OrderBuilder.tsx                    # RF-3, RF-4, RF-5, RF-6, RF-7
-    MyOrdersList.tsx                     # RF-8, RF-10
-    IncomingOrdersPanel.tsx                # RF-9, RF-11 (admin)
+    MyOrdersList.tsx                     # RF-8, RF-10; título de cada
+                                          # pedido pasa de "Pedido {id}" a
+                                          # "N° {numero_dia}" + fecha/hora
+                                          # en letra pequeña (RF-14)
+    IncomingOrdersPanel.tsx                # RF-9, RF-11 (admin); mismo
+                                            # cambio de título que
+                                            # MyOrdersList (RF-14)
 ```
 
 ---
@@ -157,6 +174,8 @@ numeración exacta (sección 5, decisión 1).
 | `status`        | `CharField` choices `DRAFT` / `IN_PROGRESS` / `CHARGED` / `VOIDED` | default `DRAFT`                                                    | RF-2, RF-5, RF-9, RF-11 |
 | `delivered`     | `BooleanField` default `False`                                     | independiente de `status` (RF-8)                                   | RF-8      |
 | `created_at`    | `DateTimeField(auto_now_add=True)`                                 | —                                                                  | —         |
+| `daily_number`  | `PositiveIntegerField(null=True, blank=True)`                      | `None` mientras el pedido esté en "borrador"; se asigna una sola vez, al enviarlo, y nunca cambia después (RF-14) | RF-14 |
+| `sent_at`       | `DateTimeField(null=True, blank=True)`                             | `None` mientras esté en "borrador"; se fija junto con `daily_number`, en el mismo instante, y tampoco cambia después (RF-14) | RF-14 |
 
 **Ejemplo de registro:**
 
@@ -167,9 +186,19 @@ numeración exacta (sección 5, decisión 1).
   "waiter_id": 7,
   "status": "IN_PROGRESS",
   "delivered": false,
-  "created_at": "2026-03-10T20:15:00Z"
+  "created_at": "2026-03-10T20:15:00Z",
+  "daily_number": 7,
+  "sent_at": "2026-03-10T20:15:00Z"
 }
 ```
+
+No hay `UniqueConstraint` declarativa sobre `(daily_number)` solo —
+`daily_number` se repite entre días distintos por diseño (RF-14); lo
+único que debe ser único es el par (fecha local de `sent_at`,
+`daily_number`), y esa fecha no es un campo propio de `Order` sino que
+se deriva de `sent_at` en la zona horaria del servidor — por eso la
+unicidad real la garantiza `DailyOrderCounter` (abajo), no una
+restricción sobre esta tabla.
 
 ### Tabla `OrderItem` (línea de pedido — RF-3, RF-4, RF-5, RF-6)
 
@@ -238,6 +267,24 @@ numeración exacta (sección 5, decisión 1).
 `ITEM_VOIDED` que dejó al pedido sin ítems activos (RF-6), en vez de
 pedir un motivo nuevo.
 
+### Tabla `DailyOrderCounter` (contador del número del día — RF-14)
+
+| Campo         | Tipo                                  | Restricciones                                        | RF    |
+|----------------|----------------------------------------|---------------------------------------------------------|-------|
+| `local_date`   | `DateField`                            | PK (`primary_key=True`); fecha local (`America/Bogota`) | RF-14 |
+| `last_number`  | `PositiveIntegerField`                 | default `0`; el último número del día ya repartido      | RF-14 |
+
+Una sola fila por día, creada perezosamente (`get_or_create`) la
+primera vez que se envía un pedido ese día — nunca se precrean filas
+para días futuros. Ver sección 4.1 para cómo se incrementa sin
+duplicar números bajo solicitudes concurrentes.
+
+**Ejemplo de registro:**
+
+```json
+{ "local_date": "2026-03-10", "last_number": 7 }
+```
+
 ---
 
 ## 3. Contrato de la API
@@ -248,12 +295,12 @@ sesión (heredada del módulo 001). Todas las respuestas de error usan
 
 | # | Endpoint | Método | RF | Auth | Request | Response 200/201/204 | Errores |
 |---|-----------|--------|----|------|---------|------------------------|---------|
-| 1 | `/api/mesas` | GET | RF-1, RF-13 | admin o mesero | — | `[{numero, estado}]` | 401 |
+| 1 | `/api/mesas` | GET | RF-1, RF-13, RF-14 | admin o mesero | — | `[{numero, estado, numero_dia_pedido_activo}]` | 401 |
 | 2 | `/api/mesas/numero` | PATCH | RF-1 | admin | `{numero}` | 200 `[{numero, estado}]` | 400 numero<1 o no entero; 409 alguna mesa a eliminar no está libre; 403 mesero |
-| 3 | `/api/pedidos` | POST | RF-2 | mesero | `{mesa_numero}` | 201 `{id, mesa_numero, estado, entregado}` | 400 mesa no existe; 409 mesa no libre; 403 admin |
-| 4 | `/api/pedidos/mios` | GET | RF-8, RF-10, RF-13 | mesero | — | `[{id, mesa_numero, estado, entregado, total}]` (solo del mesero autenticado) | 401 |
-| 5 | `/api/pedidos/entrantes` | GET | soporta RF-9, RF-11 (panel admin) | admin | — | `[{id, mesa_numero, estado, entregado, items, total}]` (excluye cobrados/anulados) | 403 mesero |
-| 6 | `/api/pedidos/{id}` | GET | RF-13 | dueño o admin | — | `{id, mesa_numero, estado, entregado, items, total}` | 403 mesero ajeno; 404 |
+| 3 | `/api/pedidos` | POST | RF-2 | mesero | `{mesa_numero}` | 201 `{id, mesa_numero, estado, entregado, numero_dia: null, enviado_en: null}` | 400 mesa no existe; 409 mesa no libre; 403 admin |
+| 4 | `/api/pedidos/mios` | GET | RF-8, RF-10, RF-13 | mesero | — | `[{id, mesa_numero, estado, entregado, total, numero_dia, enviado_en}]` (solo del mesero autenticado) | 401 |
+| 5 | `/api/pedidos/entrantes` | GET | soporta RF-9, RF-11 (panel admin) | admin | — | `[{id, mesa_numero, estado, entregado, items, total, numero_dia, enviado_en}]` (excluye cobrados/anulados) | 403 mesero |
+| 6 | `/api/pedidos/{id}` | GET | RF-13 | dueño o admin | — | `{id, mesa_numero, estado, entregado, items, total, numero_dia, enviado_en}` | 403 mesero ajeno; 404 |
 | 7 | `/api/pedidos/{id}/items` | POST | RF-3, RF-4, RF-5 | dueño | `{producto_id}` **o** `{nombre, precio}`, + `cantidad?`, `nota?` | 201 (línea creada; `line_type` se infiere del estado del pedido) | 400 validación; 404 producto/pedido; 409 producto no disponible, o pedido cobrado/anulado; 403 no es el dueño |
 | 8 | `/api/pedidos/{id}/items/{item_id}` | DELETE | RF-2 | dueño | — | 204 | 409 el pedido ya no está en "borrador"; 403; 404 |
 | 9 | `/api/pedidos/{id}/items/{item_id}/anular` | POST | RF-6 | dueño | `{motivo}` | 200 | 400 falta motivo; 409 pedido no en preparación, o ítem ya anulado; 403; 404 |
@@ -270,6 +317,27 @@ carta" y "agregar adición" en una sola ruta (sección 5, decisión 2): el
 servidor decide `line_type` según si el pedido está en "borrador" u "en
 preparación", y decide "catálogo vs. fuera de carta" según si el body
 trae `producto_id` o `nombre`+`precio`.
+
+`numero_dia_pedido_activo` (endpoint 1) expone, para cualquier mesa
+"ocupada" o "pagada", el `daily_number` del pedido activo asociado —
+visible para cualquier mesero autenticado, no solo el dueño, porque
+RF-13/RF-14 (spec) resolvieron que el número del día no es "contenido"
+restringido. `null` si la mesa está libre, o si su pedido activo aún no
+tiene número (caso transitorio, borrador recién creado). Es el único
+campo de `GET /api/mesas` que identifica un pedido; el resto de su
+contenido (ítems, notas, total) sigue sin exponerse ahí.
+
+`numero_dia`/`enviado_en` (RF-14, sección 4.1) viajan como par en
+cualquier respuesta que incluya un pedido (endpoints 3, 4, 5, 6, 11): el
+entero crudo y el ISO datetime de `sent_at`, `null` los dos mientras el
+pedido siga en "borrador". El formato de presentación ("N° 7") es
+responsabilidad del frontend, no del contrato de API. El endpoint 11
+(`enviar`) es el único que hace la transición real de `null` a su
+primer valor — su respuesta 200 incluye el pedido completo, igual que
+los demás endpoints que devuelven el pedido tras una acción (12, 13).
+El campo `id` interno sigue presente en todas estas respuestas sin
+excepción (RF-14 solo prohíbe mostrarlo como texto en pantalla, nunca
+en el payload de la API — ver spec 003, RF-14).
 
 Códigos de estado usados y su porqué:
 - **400** — validación de campo (nombre/precio/nota/cantidad/motivo
@@ -318,6 +386,8 @@ FUNCTION enviar_pedido(pedido):
     SI pedido.items.filter(is_voided=False).count() == 0:
         RECHAZAR 409("El pedido no tiene ningún ítem.")
     pedido.estado = IN_PROGRESS
+    asignar_numero_del_dia(pedido)      # RF-14, ver sección 4.1 — dentro
+                                         # de la misma transacción
     guardar(pedido)
     notificar_pedidos_actualizados()    # primera vez que el admin se entera
     RETORNAR 200(pedido)
@@ -340,6 +410,73 @@ FUNCTION anular_item(pedido, item, mesero, motivo):
     notificar_pedidos_actualizados()
     RETORNAR 200(pedido)
 ```
+
+---
+
+## 4.1. Asignación del número del día (RF-14)
+
+**Opción A — Calcular el siguiente número contando filas** (ej.
+`Order.objects.filter(sent_at__date=hoy).count() + 1`).
+
+- A favor: no necesita una tabla nueva.
+- En contra: es un patrón leer-luego-escribir clásico. Dos solicitudes
+  de envío casi simultáneas pueden leer el mismo `count()` antes de que
+  ninguna haya guardado todavía, y ambas calcularían el mismo "siguiente
+  número" — exactamente la condición de carrera que RF-14 prohíbe. Ya se
+  aprendió en este mismo proyecto (004, `kitchen_printing`) que
+  envolver ambas lecturas en una sola `transaction.atomic()` no alcanza
+  por sí solo: SQLite en modo *shared-cache* puede devolver
+  `OperationalError: database table is locked` a la segunda escritura en
+  vez de serializarla de forma transparente.
+
+**Opción B — Un contador dedicado (`DailyOrderCounter`, sección 2) más
+el mismo `threading.Lock()` en memoria que ya serializa la impresora en
+`kitchen_printing` (004).**
+
+- A favor: aplica la lección ya aprendida en 004 sin introducir un
+  mecanismo nuevo — un único proceso Daphne/ASGI (regla 1, sin
+  multi-worker) hace que un lock de proceso sea suficiente para
+  garantizar que todo el ciclo "leer `last_number`, incrementarlo,
+  guardarlo, asignarlo al pedido" ocurra de a una solicitud a la vez,
+  sin depender de cómo SQLite resuelva escrituras concurrentes.
+- En contra: ninguno relevante — es el mismo patrón que ya se validó en
+  producción (004) para un problema de la misma forma (un recurso
+  compartido que una sola solicitud a la vez puede tocar).
+
+**Decisión: Opción B.** Mismo lock, mismo razonamiento que 004: más
+simple y más robusto que confiar en el comportamiento de concurrencia
+de SQLite para esta operación.
+
+```
+NUMERO_DEL_DIA_LOCK = threading.Lock()   # distinto del lock de 004 (otro recurso)
+
+FUNCTION asignar_numero_del_dia(pedido):
+    hoy = timezone.localdate()           # America/Bogota (regla 2)
+    CON NUMERO_DEL_DIA_LOCK:
+        contador, _ = DailyOrderCounter.objects.get_or_create(
+            local_date=hoy, defaults={"last_number": 0}
+        )
+        contador.last_number += 1
+        guardar(contador)
+        pedido.daily_number = contador.last_number
+        pedido.sent_at = timezone.now()
+```
+
+Esta función se llama **dentro** de la misma `transaction.atomic()` que
+ya envuelve `enviar_pedido` (pseudocódigo de la sección 4): si el envío
+falla por cualquier otra razón después de incrementar el contador, la
+transacción completa se revierte — contador incluido — así que un fallo
+a mitad de proceso no dejaría un hueco en la práctica; el único caso que
+sí podría dejarlo es una caída del proceso entre el `COMMIT` confirmado
+y antes de que la respuesta HTTP salga, fuera del control de esta
+función (consistente con que la spec, RF-14, tolera huecos sin
+exigir que el sistema los rellene).
+
+`asignar_numero_del_dia` nunca se llama en ninguna otra transición de
+estado (adición, anulación de ítem/pedido, corrección de mesa) — esas
+rutas de `services.py` simplemente no la invocan, que es como RF-14
+garantiza la inmutabilidad: no hay ninguna rama de código que vuelva a
+tocar `daily_number`/`sent_at` una vez asignados.
 
 ---
 
@@ -415,6 +552,28 @@ FUNCTION anular_item(pedido, item, mesero, motivo):
    estado que cada RF exige, sin infraestructura adicional (consistente
    con la regla 1, sin Redis).
 
+9. **`threading.Lock()` en memoria del proceso + tabla
+   `DailyOrderCounter`** para asignar el número del día (RF-14), en vez
+   de contar filas de `Order` al vuelo — justificada en detalle en la
+   sección 4.1 (mismo patrón que el lock de impresión de 004).
+
+10. **La etiqueta visible "Entregado" (RF-8) se calcula en el frontend
+    combinando `status` + `delivered`, en vez de agregar un quinto valor
+    real a `Order.status`.**
+    Descartado: un estado `DELIVERED` en la base de datos. Habría
+    obligado a revisar y actualizar cada chequeo que hoy compara
+    `order.status == IN_PROGRESS` para que también acepte el nuevo
+    valor — `add_item`/`void_item`/`fix_table` en `services.py`,
+    `charge_order` en `apps.payments.services` (005), `retry_print` en
+    `apps.kitchen_printing.services` (004), y los 4 chequeos de
+    `OrderBuilder.tsx` —, con el riesgo de romper algo ya probado para
+    ganar nada a cambio: `delivered` ya viaja en todo payload de pedido,
+    y `status` sigue siendo la única fuente de verdad para qué acciones
+    proceden (RF-5, RF-6, RF-7, RF-9, RF-11). Calcular la etiqueta en
+    `MyOrdersList.tsx`/`OrderBuilder.tsx` (las únicas dos pantallas que
+    muestran el badge de estado al mesero) logra el mismo resultado
+    visible sin tocar backend ni esos chequeos.
+
 ---
 
 ## 6. Estrategia de tests
@@ -457,12 +616,32 @@ acción sensible tiene al menos un test).
   ya cobrado; libera la mesa.
 - RF-12: cada acción sensible (T anterior) deja exactamente una fila
   nueva en `OrderAction` con los datos esperados.
+- RF-14: enviar un pedido en "borrador" le asigna `daily_number=1` y
+  `sent_at` si es el primero del día; el segundo pedido enviado el mismo
+  día recibe `2`; un pedido en otra fecha local (mockeando
+  `DailyOrderCounter` con `local_date` de ayer) arranca de nuevo en `1`;
+  reenviar un pedido ya "en preparación" no cambia ni vuelve a tocar su
+  `daily_number`/`sent_at`; agregar una adición, anular un ítem, anular
+  el pedido completo (manual o automático), o corregir la mesa, dejan
+  `daily_number`/`sent_at` intactos; dos llamadas a
+  `asignar_numero_del_dia` desde dos hilos distintos (simulando envíos
+  casi simultáneos, mismo patrón que `PrintLockSerializationTests` de
+  004) nunca producen el mismo número.
 
 ### Integración (`DRF APIClient`, HTTP real)
 
 - Los 16 endpoints de la sección 3: status code y payload correctos para
   cada caso de éxito y de error (400/401/403/404/409) — cubre RF-1 a
   RF-13 uno a uno.
+- RF-14: `POST /api/pedidos/{id}/enviar` devuelve `numero_dia`/
+  `enviado_en` en su respuesta 200; `GET /api/pedidos/mios`,
+  `/entrantes` y `/{id}` devuelven `numero_dia: null`/`enviado_en: null`
+  mientras el pedido siga en "borrador", y los valores reales después de
+  enviarlo; `GET /api/mesas` devuelve `numero_dia_pedido_activo` correcto
+  para una mesa ocupada/pagada, y `null` para una libre — probado tanto
+  con el mesero dueño del pedido como con uno ajeno (no es "contenido"
+  restringido por RF-13), confirmando que el ajeno sigue recibiendo 403
+  si intenta `GET /api/pedidos/{id}` de ese mismo pedido.
 - Flujo completo: ajustar mesas → crear pedido → enviar → agregar
   adición → anular un ítem (verifica `OrderAction`) → corregir mesa →
   marcar entregado → cobrar → liberar mesa.
@@ -507,9 +686,10 @@ acción sensible tiene al menos un test).
 | RF-5 | Sección 3 (endpoint 11), Sección 4 (cuándo notifica), pseudocódigo `enviar_pedido` |
 | RF-6 | Sección 2 (`OrderAction`), Sección 3 (endpoint 9), Sección 4, pseudocódigo `anular_item`, Decisión técnica 3 |
 | RF-7 | Sección 2 (`Order.table_number`, `OrderAction.from/to_table_number`), Sección 3 (endpoint 12), Decisión técnica 1 |
-| RF-8 | Sección 2 (`Order.delivered`), Sección 3 (endpoint 13) |
+| RF-8 | Sección 2 (`Order.delivered`), Sección 3 (endpoint 13), Decisión técnica 10 (etiqueta visible "Entregado" calculada en el frontend) |
 | RF-9 | Sección 3 (endpoints 5, 14) |
 | RF-10 | Sección 3 (endpoint 16) |
 | RF-11 | Sección 2 (`OrderAction.ORDER_VOIDED`/`ORDER_VOIDED_AUTO`), Sección 3 (endpoint 15), pseudocódigo `anular_item` (rama automática) |
 | RF-12 | Sección 2 (`OrderAction`), todas las funciones de servicio en sección 4/5 que llaman `registrar_accion` |
 | RF-13 | Sección 1 (`permissions.py`, `IsOrderOwner`), Sección 3 (endpoints 4-6, columna Auth), Sección 4 (consumer admin-only) |
+| RF-14 | Sección 2 (`Order.daily_number`/`sent_at`, `DailyOrderCounter`), Sección 3 (endpoint 1 `numero_dia_pedido_activo`, endpoints 3-6 y 11 `numero_dia`/`enviado_en`), Sección 4.1 (mecanismo de asignación, pseudocódigo), Decisión técnica 9, Sección 6 |

@@ -7,12 +7,29 @@ import {
   voidCharge,
   type PaymentAccount,
 } from "@/lib/api/payments";
+import { formatPrice } from "@/lib/format";
 import styles from "./ChargeOrderModal.module.css";
 
 function formatError(error: unknown): string {
   const detail = (error as ApiErrorBody)?.detail;
   if (Array.isArray(detail)) return detail.join(" ");
   return detail ?? "Ocurrió un error inesperado.";
+}
+
+/** RF-4, 003-RF-14: identifies the order by its daily number — never
+ * the internal id — inherited from the same order payload 003 already
+ * serializes (plan.md, sección 6). */
+function orderTitle(order: Order): string {
+  return order.daily_number !== null ? `N° ${order.daily_number}` : "Sin número";
+}
+
+function formatSentAt(sentAt: string | null): string | null {
+  if (!sentAt) return null;
+  const date = new Date(sentAt);
+  const pad = (value: number) => value.toString().padStart(2, "0");
+  return `${pad(date.getDate())}/${pad(date.getMonth() + 1)} ${pad(
+    date.getHours()
+  )}:${pad(date.getMinutes())}`;
 }
 
 /** Charge confirmation modal (005-cobro — RF-1, RF-3, RF-4): shows the
@@ -68,10 +85,10 @@ export function ChargeOrderModal({
     return (
       <div className={styles.overlay}>
         <div className={styles.modal}>
-          <h2 className={styles.heading}>Pedido {charged.id} cobrado</h2>
+          <h2 className={styles.heading}>{orderTitle(charged)} cobrado</h2>
           <p className={styles.confirmationText}>
             Cobrado con <strong>{charged.active_payment?.account_name}</strong>
-            {" — "}${charged.active_payment?.amount}
+            {" — "}${formatPrice(charged.active_payment?.amount ?? 0)}
           </p>
 
           {message && (
@@ -105,8 +122,11 @@ export function ChargeOrderModal({
     <div className={styles.overlay}>
       <div className={styles.modal}>
         <h2 className={styles.heading}>
-          Cobrar pedido {order.id} — Mesa {order.table_number}
+          {orderTitle(order)} — Mesa {order.table_number}
         </h2>
+        {formatSentAt(order.sent_at) && (
+          <p className={styles.sentAt}>Enviado {formatSentAt(order.sent_at)}</p>
+        )}
 
         <ul className={styles.itemsList}>
           {order.items
@@ -116,13 +136,13 @@ export function ChargeOrderModal({
                 <span>
                   {item.quantity}x {item.name}
                 </span>
-                <span>${(Number(item.unit_price) * item.quantity).toFixed(2)}</span>
+                <span>${formatPrice(Number(item.unit_price) * item.quantity)}</span>
               </li>
             ))}
         </ul>
         <div className={styles.totalRow}>
           <span>Total</span>
-          <span className={styles.totalAmount}>${order.total}</span>
+          <span className={styles.totalAmount}>${formatPrice(order.total)}</span>
         </div>
 
         {message && (
