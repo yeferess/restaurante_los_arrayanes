@@ -10,6 +10,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
+import sys
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -184,7 +185,9 @@ AUTH_USER_MODEL = "accounts.User"
 # specs/004-impresion-cocina/plan.md, sections 3 and 4.
 
 KITCHEN_PRINTER_COLUMNS = 40
-KITCHEN_PRINTER_ADAPTER = "escpos"
+# The test suite must never reach the real printer: on the restaurant's
+# machine every unpatched send_order would print a real ticket.
+KITCHEN_PRINTER_ADAPTER = "fake" if "test" in sys.argv[1:2] else "escpos"
 # Blank lines fed after each ticket so it clears the tear bar.
 KITCHEN_PRINTER_FEED_LINES = 6
 
