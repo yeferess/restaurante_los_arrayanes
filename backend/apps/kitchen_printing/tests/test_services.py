@@ -94,6 +94,22 @@ class PrintAttemptTests(TestCase):
         job = PrintJob.objects.get(order=self.order)
         self.assertEqual(job.status, PrintJob.Status.PENDING)
 
+    def test_notifies_once_the_job_is_already_marked_printed(self):
+        """Screens refetch on the notification: by then the job must no
+        longer read as PENDING, or "No impreso en cocina" sticks."""
+        statuses_seen = []
+
+        def record_status():
+            statuses_seen.append(PrintJob.objects.get(order=self.order).status)
+
+        with _patched_adapter(FakePrinterAdapter()), patch(
+            "apps.kitchen_printing.services.notify_orders_changed",
+            side_effect=record_status,
+        ):
+            services.register_event_and_print(self.order, PrintJob.TicketType.NEW_ORDER)
+
+        self.assertEqual(statuses_seen, [PrintJob.Status.PRINTED])
+
     def test_attempts_increments_on_each_try_while_still_pending(self):
         adapter = FakePrinterAdapter(fail_with=PrinterNotDetectedError)
         with _patched_adapter(adapter):

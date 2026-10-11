@@ -201,6 +201,9 @@ sobre sus propios pedidos.
   sistema deberá mostrar un único indicador visible por pedido (no uno
   por cada evento consolidado, ver RF-8) en la lista de pedidos del
   mesero dueño, y en el panel de pedidos entrantes del admin.
+- El sistema deberá notificar en tiempo real después de cada intento de
+  impresión (exitoso o no), no solo antes, para que ninguna pantalla se
+  quede mostrando "no impreso" de un ticket que sí salió.
 - El sistema deberá permitir al mesero dueño del pedido reintentar la
   impresión de ese ticket pendiente, en cualquier momento, siempre que
   el pedido no esté "cobrado" ni "anulado".

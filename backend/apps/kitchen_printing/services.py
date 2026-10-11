@@ -68,12 +68,19 @@ def register_event_and_print(order, event_type):
     """RF-1, RF-8, RF-9: reuse the order's single pending ticket if one
     already exists (consolidation — its header stays fixed to whichever
     event created it); otherwise open a new one. Either way, attempt to
-    print it now, synchronously."""
+    print it now, synchronously.
+
+    Notifies again once the attempt is over: callers already notified
+    before printing, and a screen that refetched in between saw the job
+    still PENDING — without this second notification it would keep
+    showing "No impreso en cocina" for a ticket that did print."""
     with _print_lock:
         pending = order.print_jobs.filter(status=PrintJob.Status.PENDING).first()
         created = pending is None
         job = pending or PrintJob.objects.create(order=order, ticket_type=event_type)
-        return _attempt_print(job, created)
+        print_warning = _attempt_print(job, created)
+    notify_orders_changed()
+    return print_warning
 
 
 def retry_print(order, waiter):
