@@ -49,6 +49,7 @@ describe("TableGrid (T65, RF-1/2/13)", () => {
       id: 41,
       table_number: 1,
       waiter_id: 1,
+      waiter_username: "mesero1",
       status: "DRAFT",
       delivered: false,
       items: [],

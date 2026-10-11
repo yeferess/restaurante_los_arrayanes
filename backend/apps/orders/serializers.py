@@ -55,6 +55,7 @@ class OrderSerializer(serializers.ModelSerializer):
     total = serializers.SerializerMethodField()
     has_pending_print = serializers.SerializerMethodField()
     active_payment = serializers.SerializerMethodField()
+    waiter_username = serializers.CharField(source="waiter.username", read_only=True)
 
     class Meta:
         model = Order
@@ -62,6 +63,7 @@ class OrderSerializer(serializers.ModelSerializer):
             "id",
             "table_number",
             "waiter_id",
+            "waiter_username",
             "status",
             "delivered",
             "items",

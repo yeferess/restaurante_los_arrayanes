@@ -1,6 +1,9 @@
+import datetime
 from decimal import Decimal, InvalidOperation
 
 from django.core.exceptions import ValidationError as DjangoValidationError
+from django.db.models import OuterRef, Subquery
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -9,6 +12,7 @@ from apps.orders import services
 from apps.orders.models import Order, OrderItem, Table
 from apps.orders.permissions import IsAdmin, IsMesero
 from apps.orders.serializers import OrderItemSerializer, OrderSerializer, TableSerializer
+from apps.payments.models import Payment
 
 
 def _status_for(exc):
@@ -133,6 +137,39 @@ class IncomingOrdersView(APIView):
     def get(self, request):
         orders = Order.objects.filter(status=Order.Status.IN_PROGRESS).order_by(
             "created_at"
+        )
+        return Response(OrderSerializer(orders, many=True).data)
+
+
+class ChargedOrdersView(APIView):
+    """GET /api/pedidos/cobrados?fecha=YYYY-MM-DD (005 RF-9). Admin-only.
+    Orders charged on that local date (today when omitted), newest
+    charge first — the admin's "Cobrados" tab, from where they can be
+    reprinted (004 RF-12)."""
+
+    permission_classes = [IsAdmin]
+
+    def get(self, request):
+        raw_date = request.query_params.get("fecha")
+        if raw_date:
+            try:
+                day = datetime.date.fromisoformat(raw_date)
+            except ValueError:
+                return Response(
+                    {"detail": ["La fecha debe tener el formato AAAA-MM-DD."]},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+        else:
+            day = timezone.localdate()
+
+        active_charged_at = Payment.objects.filter(
+            order=OuterRef("pk"), status=Payment.Status.ACTIVE
+        ).values("charged_at")[:1]
+        orders = (
+            Order.objects.filter(status=Order.Status.CHARGED)
+            .annotate(charged_at=Subquery(active_charged_at))
+            .filter(charged_at__date=day)
+            .order_by("-charged_at")
         )
         return Response(OrderSerializer(orders, many=True).data)
 

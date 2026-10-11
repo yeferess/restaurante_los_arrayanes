@@ -230,7 +230,31 @@ sobre sus propios pedidos.
   únicamente al mesero dueño del pedido correspondiente (003 RF-13).
 - El admin puede ver el indicador de "no impreso" en su panel, pero el
   sistema no deberá ofrecerle una acción de reintentar desde ahí en este
-  módulo.
+  módulo. Sí puede reimprimir un pedido completo (RF-12).
+
+### RF-12 — Reimpresión manual de un pedido
+
+*(Agregado 2026-10-11: cocina necesita una copia de un pedido que ya se
+imprimió bien, por ejemplo si el papel se perdió o se dañó.)*
+
+- El sistema deberá permitir reimprimir un pedido completo:
+  - al mesero dueño del pedido, mientras esté "en preparación";
+  - a un admin, mientras esté "en preparación" o "cobrado" (desde
+    "Pedidos entrantes" y desde la pestaña "Cobrados", 005 RF-9).
+- Nunca se reimprime un pedido en "borrador" (cocina nunca lo vio) ni
+  uno "anulado".
+- El ticket lleva el encabezado `REIMPRESION - MESA N` con los mismos
+  metadatos de RF-2, y todos los ítems activos del pedido en ese
+  momento, cada uno con su nota debajo (RF-6). Los ítems anulados no
+  aparecen.
+- La reimpresión es una copia: no cuenta como "lo último que llegó al
+  papel" para calcular el próximo ticket (RF-8), y no toca ni resuelve
+  un ticket pendiente del mismo pedido.
+- Si la reimpresión falla, el sistema devuelve el mismo aviso de RF-9,
+  pero no deja ningún indicador de "no impreso" ni ticket pendiente: el
+  usuario simplemente vuelve a intentarlo.
+- Endpoint: `POST /api/pedidos/{id}/reimpresion`, con sesión
+  autenticada (RF-11).
 
 ## Requisitos no funcionales
 

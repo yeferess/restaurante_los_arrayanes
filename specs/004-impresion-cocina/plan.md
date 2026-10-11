@@ -390,6 +390,12 @@ respuestas de error usan `{"detail": "<mensaje>"}`.
 | Endpoint | Método | RF | Auth | Request | Response 200 | Errores |
 |-----------|--------|----|------|---------|-----------------|---------|
 | `/api/pedidos/{id}/reimprimir` | POST | RF-9, RF-10, RF-11 | dueño | — | `{...pedido..., "print_warning": null \| "<mensaje>"}` | 403 no es el dueño; 404 pedido no existe o no hay ticket pendiente; 409 pedido ya cobrado o anulado |
+| `/api/pedidos/{id}/reimpresion` | POST | RF-12 | dueño (en preparación) o admin (en preparación o cobrado) | — | `{...pedido..., "print_warning": null \| "<mensaje>"}` | 403 ni dueño ni admin; 404 pedido no existe; 409 estado no permitido |
+
+La reimpresión (RF-12) usa `PrintJob.TicketType.REPRINT`: solo se guarda
+si llegó al papel (`PRINTED`, sin marcas `last_*_id`), y
+`rendering._since_reference` la excluye para no alterar el cálculo de
+adiciones/anulaciones. El texto lo arma `rendering.build_reprint_text`.
 
 ### Extensión de los endpoints existentes de 003
 

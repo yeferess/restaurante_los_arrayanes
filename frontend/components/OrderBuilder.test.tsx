@@ -23,6 +23,7 @@ const DRAFT_ORDER = {
   id: 41,
   table_number: 1,
   waiter_id: 1,
+  waiter_username: "mesero1",
   status: "DRAFT" as const,
   delivered: false,
   items: [],

@@ -37,3 +37,24 @@ class RetryPrintView(APIView):
         data = OrderSerializer(order).data
         data["print_warning"] = print_warning
         return Response(data)
+
+
+class ReprintOrderView(APIView):
+    """POST /api/pedidos/{id}/reimpresion (RF-12). The order's own waiter
+    while it is open, or any admin while it is open or charged — the
+    role/status rules live in services.reprint_order."""
+
+    def post(self, request, pk):
+        try:
+            order = Order.objects.get(pk=pk)
+        except Order.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
+        try:
+            print_warning = services.reprint_order(order, request.user)
+        except DjangoValidationError as exc:
+            return Response({"detail": exc.messages}, status=_status_for(exc))
+
+        data = OrderSerializer(order).data
+        data["print_warning"] = print_warning
+        return Response(data)

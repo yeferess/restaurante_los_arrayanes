@@ -14,6 +14,9 @@ class PrintJob(models.Model):
         NEW_ORDER = "NEW_ORDER", "New order"
         ADDITION = "ADDITION", "Addition"
         VOID = "VOID", "Void"
+        # A manual copy of the whole order (RF-12). Never PENDING, and never
+        # used as the "already on paper" reference for the next ticket.
+        REPRINT = "REPRINT", "Reprint"
 
     class Status(models.TextChoices):
         PENDING = "PENDING", "Pending"

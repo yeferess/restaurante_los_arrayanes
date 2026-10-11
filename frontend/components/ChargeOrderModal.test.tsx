@@ -18,6 +18,7 @@ const ORDER = {
   id: 41,
   table_number: 5,
   waiter_id: 1,
+  waiter_username: "mesero1",
   status: "IN_PROGRESS" as const,
   delivered: false,
   items: [

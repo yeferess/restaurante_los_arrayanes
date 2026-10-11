@@ -12,7 +12,7 @@ from django.utils import timezone
 from apps.kitchen_printing.adapters import PrinterFailureError, PrinterNotDetectedError
 from apps.kitchen_printing.factory import get_printer_adapter
 from apps.kitchen_printing.models import PrintJob
-from apps.kitchen_printing.rendering import build_ticket_text
+from apps.kitchen_printing.rendering import build_reprint_text, build_ticket_text
 from apps.orders.models import Order, OrderAction
 from apps.orders.services import notify_orders_changed
 
@@ -109,3 +109,43 @@ def retry_print(order, waiter):
     if print_warning is None:
         notify_orders_changed()
     return print_warning
+
+
+def reprint_order(order, user):
+    """RF-12: print a copy of the whole order on demand. The order's own
+    waiter can do it while the order is still open; an admin also after
+    it was charged (the "Cobrados" tab, 005). Never touches the order's
+    pending ticket, if any, nor the "already on paper" reference.
+
+    Only a copy that actually reached paper is recorded; a failed one
+    just returns the warning, so it never shows up as "No impreso"."""
+    is_admin = user.role == user.Role.ADMIN
+    if not is_admin and order.waiter_id != user.id:
+        raise ValidationError(
+            "Solo el mesero dueño del pedido o un admin pueden reimprimirlo.",
+            code="not_owner",
+        )
+    allowed_statuses = (
+        (Order.Status.IN_PROGRESS, Order.Status.CHARGED)
+        if is_admin
+        else (Order.Status.IN_PROGRESS,)
+    )
+    if order.status not in allowed_statuses:
+        raise ValidationError(
+            "Este pedido no se puede reimprimir.", code="not_editable"
+        )
+
+    with _print_lock:
+        try:
+            get_printer_adapter().print_ticket(build_reprint_text(order))
+        except PrinterNotDetectedError:
+            return PRINTER_NOT_DETECTED_MESSAGE
+        except PrinterFailureError:
+            return PRINTER_FAILURE_MESSAGE
+        PrintJob.objects.create(
+            order=order,
+            ticket_type=PrintJob.TicketType.REPRINT,
+            status=PrintJob.Status.PRINTED,
+            printed_at=timezone.now(),
+        )
+    return None

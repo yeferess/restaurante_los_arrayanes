@@ -9,6 +9,7 @@ vi.mock("@/lib/api/orders", () => ({
   setDelivered: vi.fn(),
   releaseTable: vi.fn(),
   retryPrint: vi.fn(),
+  reprintOrder: vi.fn(),
   deleteOrder: vi.fn(),
 }));
 
@@ -18,6 +19,7 @@ import {
   setDelivered,
   releaseTable,
   retryPrint,
+  reprintOrder,
   deleteOrder,
 } from "@/lib/api/orders";
 
@@ -25,6 +27,7 @@ const DRAFT_ORDER = {
   id: 41,
   table_number: 1,
   waiter_id: 1,
+  waiter_username: "mesero1",
   status: "DRAFT" as const,
   delivered: false,
   items: [],
@@ -39,6 +42,7 @@ const CHARGED_ORDER = {
   id: 42,
   table_number: 2,
   waiter_id: 1,
+  waiter_username: "mesero1",
   status: "CHARGED" as const,
   delivered: true,
   items: [],
@@ -53,6 +57,7 @@ const UNPRINTED_ORDER = {
   id: 43,
   table_number: 3,
   waiter_id: 1,
+  waiter_username: "mesero1",
   status: "IN_PROGRESS" as const,
   delivered: false,
   items: [],
@@ -67,6 +72,7 @@ const DELIVERED_ORDER = {
   id: 44,
   table_number: 1,
   waiter_id: 1,
+  waiter_username: "mesero1",
   status: "IN_PROGRESS" as const,
   delivered: true,
   items: [],
@@ -81,6 +87,7 @@ const VOIDED_DELIVERED_ORDER = {
   id: 45,
   table_number: 1,
   waiter_id: 1,
+  waiter_username: "mesero1",
   status: "VOIDED" as const,
   delivered: true,
   items: [],
@@ -335,5 +342,34 @@ describe("MyOrdersList (T67, RF-8/10)", () => {
     render(<MyOrdersList />);
     expect(await screen.findByText("Anulado")).toBeInTheDocument();
     expect(screen.queryByText("Entregado")).not.toBeInTheDocument();
+  });
+
+  it("offers 'Reimprimir pedido' only on an order in preparation (RF-12)", async () => {
+    vi.mocked(listMyOrders).mockResolvedValue([DRAFT_ORDER, UNPRINTED_ORDER, CHARGED_ORDER]);
+    render(<MyOrdersList />);
+    await screen.findAllByText(/mesa/i);
+    expect(screen.getAllByRole("button", { name: /reimprimir pedido/i })).toHaveLength(1);
+  });
+
+  it("reprints the order and confirms it", async () => {
+    const user = userEvent.setup();
+    vi.mocked(listMyOrders).mockResolvedValue([UNPRINTED_ORDER]);
+    vi.mocked(reprintOrder).mockResolvedValue({ ...UNPRINTED_ORDER, print_warning: null });
+    render(<MyOrdersList />);
+    await user.click(await screen.findByRole("button", { name: /reimprimir pedido/i }));
+    expect(reprintOrder).toHaveBeenCalledWith(UNPRINTED_ORDER.id);
+    expect(await screen.findByText(/reimpreso en cocina/i)).toBeInTheDocument();
+  });
+
+  it("shows the printer warning when the reprint fails", async () => {
+    const user = userEvent.setup();
+    vi.mocked(listMyOrders).mockResolvedValue([UNPRINTED_ORDER]);
+    vi.mocked(reprintOrder).mockResolvedValue({
+      ...UNPRINTED_ORDER,
+      print_warning: "Impresora de cocina no detectada.",
+    });
+    render(<MyOrdersList />);
+    await user.click(await screen.findByRole("button", { name: /reimprimir pedido/i }));
+    expect(await screen.findByText(/impresora de cocina no detectada/i)).toBeInTheDocument();
   });
 });

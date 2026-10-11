@@ -268,3 +268,12 @@ una condición verificable de "Hecho cuando".
   del indicador "con qué cuenta se pagó" (`active_payment`) usa
   `order.id`; ambos identifican el pedido por `numero_dia`, igual que ya
   hace `MyOrdersList`/`IncomingOrdersPanel` de 003 (T80).
+
+- [x] **T33 — Pestaña "Cobrados" del admin**
+  RF: RF-9
+  Hecho cuando: `GET /api/pedidos/cobrados` lista solo pedidos cobrados
+  de la fecha pedida (hoy por defecto), más reciente primero, con
+  `waiter_username` y `active_payment`; rechaza fecha mal formada (400)
+  y a meseros (403); `ChargedOrdersPanel` en `/admin/pedidos/cobrados`
+  con selector de fecha, detalle y botón "Reimprimir". Tests en
+  `test_charged_orders.py` y `ChargedOrdersPanel.test.tsx`.

@@ -8,6 +8,7 @@ import {
   setDelivered,
   releaseTable,
   retryPrint,
+  reprintOrder,
   deleteOrder,
   type Order,
   type ApiErrorBody,
@@ -136,6 +137,16 @@ export function MyOrdersList() {
     }
   }
 
+  async function handleReprint(order: Order) {
+    setMessage(null);
+    try {
+      const updated = await reprintOrder(order.id);
+      setMessage(updated.print_warning ?? "Pedido reimpreso en cocina.");
+    } catch (error) {
+      setMessage(formatError(error));
+    }
+  }
+
   return (
     <section className={styles.section}>
       <h1 className={styles.heading}>Mis pedidos</h1>
@@ -211,6 +222,15 @@ export function MyOrdersList() {
                     Reintentar impresión
                   </button>
                 )}
+              {order.status === "IN_PROGRESS" && (
+                <button
+                  type="button"
+                  className={styles.actionButton}
+                  onClick={() => handleReprint(order)}
+                >
+                  Reimprimir pedido
+                </button>
+              )}
             </div>
           </li>
         ))}

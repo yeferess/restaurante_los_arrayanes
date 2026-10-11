@@ -319,3 +319,19 @@ una condición verificable de "Hecho cuando".
   `daily_number=None`, y un caso con fecha de envío distinta a la hora
   del intento de impresión (ej. una adición impresa minutos después del
   envío original) confirmando que no se mezclan; todos pasan.
+
+- [x] **T40 — Reimpresión manual de un pedido**
+  RF: RF-12
+  Hecho cuando: `POST /api/pedidos/{id}/reimpresion` imprime
+  `REIMPRESION - MESA N` con todos los ítems activos y sus notas; lo
+  permite al dueño (en preparación) y al admin (en preparación o
+  cobrado); rechaza borrador/anulado (409) y a otro mesero (403); un
+  fallo no deja ticket pendiente; no mueve `_since_reference`; botón
+  "Reimprimir" en `MyOrdersList`, `IncomingOrdersPanel` y
+  `ChargedOrdersPanel`. Tests en `test_reprint.py`.
+
+- [x] **T41 — Aviso en tiempo real después de imprimir**
+  RF: RF-10
+  Hecho cuando: `register_event_and_print` notifica al terminar el
+  intento, y un test confirma que la notificación llega con el ticket
+  ya en `PRINTED` (sin "No impreso" falso).

@@ -188,6 +188,22 @@ nunca se rompa ese invariante (ver RF-6).
   pago deberán ser acciones exclusivas del rol admin (constitución,
   regla 5) — ningún mesero deberá poder acceder a ninguna de ellas.
 
+### RF-9 — Pestaña de pedidos cobrados
+
+*(Agregado 2026-10-11.)*
+
+- El sistema deberá ofrecer al admin, en su menú, una pestaña
+  "Pedidos → Cobrados" con los pedidos cobrados en una fecha elegida
+  (hoy por defecto), del cobro más reciente al más antiguo.
+- Cada pedido muestra número del día, mesa, mesero, hora del cobro,
+  quién cobró, cuenta usada, sus ítems activos (cantidad, nombre,
+  precio unitario y nota) y el total.
+- Desde ahí el admin puede reimprimir el pedido completo en cocina
+  (004 RF-12). La pestaña es de solo lectura: no permite anular ni
+  modificar el cobro (eso sigue siendo RF-6).
+- Endpoint: `GET /api/pedidos/cobrados?fecha=AAAA-MM-DD`, exclusivo del
+  admin; toma el cobro activo del pedido y su fecha en hora local.
+
 ## Casos límite
 
 - El admin intenta cobrar un pedido que todavía está en "borrador" →

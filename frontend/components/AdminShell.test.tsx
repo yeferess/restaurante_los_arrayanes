@@ -53,9 +53,13 @@ describe("AdminShell", () => {
       "href",
       "/admin/usuarios/meseros"
     );
-    expect(screen.getByRole("link", { name: /pedidos/i })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: /entrantes/i })).toHaveAttribute(
       "href",
       "/admin/pedidos"
+    );
+    expect(screen.getByRole("link", { name: /cobrados/i })).toHaveAttribute(
+      "href",
+      "/admin/pedidos/cobrados"
     );
     expect(screen.getByRole("link", { name: /estadísticas/i })).toHaveAttribute(
       "href",

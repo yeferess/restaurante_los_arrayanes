@@ -15,6 +15,7 @@ TICKET_TYPE_LABELS = {
     PrintJob.TicketType.NEW_ORDER: "PEDIDO NUEVO",
     PrintJob.TicketType.ADDITION: "ADICION",
     PrintJob.TicketType.VOID: "ANULACION",
+    PrintJob.TicketType.REPRINT: "REIMPRESION",
 }
 
 
@@ -39,14 +40,12 @@ def _pack_line(left: str, right: str, width: int) -> str:
     return f"{left}{' ' * spacing}{right}"
 
 
-def _build_header(job: PrintJob) -> list[str]:
+def _build_header(order, label: str) -> list[str]:
     """RF-2, 003-RF-14: identifies the order by its daily number — never
     the internal id — alongside its send time; the print attempt's own
     time (already existing before RF-14) is a distinct field on the
     second line, never mixed up with the send time."""
     width = _columns()
-    order = job.order
-    label = TICKET_TYPE_LABELS[job.ticket_type]
 
     daily_number_tag = (
         f"N° {order.daily_number}" if order.daily_number is not None else "N°"
@@ -110,9 +109,11 @@ def _since_reference(order):
     the very start if none ever did (covers the very first ticket,
     RF-3). Measured by id (strictly sequential) rather than by
     timestamp: two rows created in the same instant can tie on a
-    timestamp but never on an auto-increment id."""
+    timestamp but never on an auto-increment id. Reprints (RF-12) are
+    copies on demand and never move this reference."""
     last_printed = (
         PrintJob.objects.filter(order=order, status=PrintJob.Status.PRINTED)
+        .exclude(ticket_type=PrintJob.TicketType.REPRINT)
         .order_by("-id")
         .first()
     )
@@ -143,8 +144,8 @@ def _pending_changes(order):
 
 
 def build_ticket_text(job: PrintJob) -> str:
-    lines = _build_header(job)
     order = job.order
+    lines = _build_header(order, TICKET_TYPE_LABELS[job.ticket_type])
 
     added_items, void_actions = _pending_changes(order)
     show_section_labels = bool(added_items) and bool(void_actions)
@@ -162,4 +163,14 @@ def build_ticket_text(job: PrintJob) -> str:
             lines.extend(format_item_with_note(action.item))
             lines.append(f"    Motivo: {to_ascii(action.reason or '')}")
 
+    return "\n".join(lines)
+
+
+def build_reprint_text(order) -> str:
+    """RF-12: the whole order as it stands now — every active item with
+    its note underneath — under a REIMPRESION header, so the kitchen
+    knows it is a copy and not new work."""
+    lines = _build_header(order, TICKET_TYPE_LABELS[PrintJob.TicketType.REPRINT])
+    for item in order.items.filter(is_voided=False).order_by("id"):
+        lines.extend(format_item_with_note(item))
     return "\n".join(lines)

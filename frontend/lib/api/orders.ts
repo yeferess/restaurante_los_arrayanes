@@ -38,6 +38,7 @@ export type Order = {
   id: number;
   table_number: number;
   waiter_id: number;
+  waiter_username: string;
   status: OrderStatus;
   delivered: boolean;
   items: OrderItem[];
@@ -181,4 +182,15 @@ export function retryPrint(orderId: number): Promise<Order> {
   return requestJson<Order>(`/api/pedidos/${orderId}/reimprimir`, {
     method: "POST",
   });
+}
+
+export function reprintOrder(orderId: number): Promise<Order> {
+  return requestJson<Order>(`/api/pedidos/${orderId}/reimpresion`, {
+    method: "POST",
+  });
+}
+
+export function listChargedOrders(fecha?: string): Promise<Order[]> {
+  const query = fecha ? `?fecha=${encodeURIComponent(fecha)}` : "";
+  return requestJson<Order[]>(`/api/pedidos/cobrados${query}`);
 }

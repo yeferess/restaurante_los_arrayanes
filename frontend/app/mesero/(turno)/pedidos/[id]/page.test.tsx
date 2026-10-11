@@ -10,6 +10,7 @@ vi.mock("@/lib/api/orders", () => ({
     id: 41,
     table_number: 1,
     waiter_id: 1,
+    waiter_username: "mesero1",
     status: "DRAFT",
     delivered: false,
     items: [],

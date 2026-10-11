@@ -7,6 +7,7 @@ vi.mock("@/lib/api/orders", () => ({
   listIncomingOrders: vi.fn(),
   chargeOrder: vi.fn(),
   voidOrder: vi.fn(),
+  reprintOrder: vi.fn(),
 }));
 vi.mock("@/lib/api/ordersSocket", () => ({
   subscribeToOrderUpdates: vi.fn(),
@@ -23,13 +24,14 @@ vi.mock("./ChargeOrderModal", () => ({
   ),
 }));
 
-import { listIncomingOrders, chargeOrder, voidOrder } from "@/lib/api/orders";
+import { listIncomingOrders, chargeOrder, voidOrder, reprintOrder } from "@/lib/api/orders";
 import { subscribeToOrderUpdates } from "@/lib/api/ordersSocket";
 
 const ORDER_1 = {
   id: 41,
   table_number: 1,
   waiter_id: 1,
+  waiter_username: "mesero1",
   status: "IN_PROGRESS" as const,
   delivered: false,
   items: [],
@@ -184,5 +186,14 @@ describe("IncomingOrdersPanel (T68, soporte RF-9/11)", () => {
     expect(screen.getByText("N° 9")).toBeInTheDocument();
     expect(screen.getByText(/\d{2}\/\d{2} \d{2}:\d{2}/)).toBeInTheDocument();
     expect(screen.queryByText(/^pedido 41$/i)).not.toBeInTheDocument();
+  });
+
+  it("lets the admin reprint an incoming order (RF-12)", async () => {
+    const user = userEvent.setup();
+    vi.mocked(reprintOrder).mockResolvedValue({ ...ORDER_1, print_warning: null });
+    render(<IncomingOrdersPanel />);
+    await user.click(await screen.findByRole("button", { name: /^reimprimir$/i }));
+    expect(reprintOrder).toHaveBeenCalledWith(ORDER_1.id);
+    expect(await screen.findByText(/reimpreso en cocina/i)).toBeInTheDocument();
   });
 });

@@ -23,7 +23,13 @@ const SECTIONS: Array<{ label: string; items: Array<{ href: string; label: strin
       { href: "/admin/usuarios/meseros", label: "Meseros" },
     ],
   },
-  { label: "", items: [{ href: "/admin/pedidos", label: "Pedidos" }] },
+  {
+    label: "Pedidos",
+    items: [
+      { href: "/admin/pedidos", label: "Entrantes" },
+      { href: "/admin/pedidos/cobrados", label: "Cobrados" },
+    ],
+  },
   { label: "", items: [{ href: "/admin/estadisticas", label: "Estadísticas" }] },
 ];
 

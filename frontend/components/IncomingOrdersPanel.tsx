@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   listIncomingOrders,
+  reprintOrder,
   voidOrder,
   type Order,
   type ApiErrorBody,
@@ -76,6 +77,16 @@ export function IncomingOrdersPanel() {
     }
   }
 
+  async function handleReprint(order: Order) {
+    setMessage(null);
+    try {
+      const updated = await reprintOrder(order.id);
+      setMessage(updated.print_warning ?? "Pedido reimpreso en cocina.");
+    } catch (error) {
+      setMessage(formatError(error));
+    }
+  }
+
   return (
     <section>
       <div className={styles.headerRow}>
@@ -124,6 +135,13 @@ export function IncomingOrdersPanel() {
                   onClick={() => handleVoid(order)}
                 >
                   Anular pedido
+                </button>
+                <button
+                  type="button"
+                  className={styles.actionButton}
+                  onClick={() => handleReprint(order)}
+                >
+                  Reimprimir
                 </button>
               </div>
             </li>
