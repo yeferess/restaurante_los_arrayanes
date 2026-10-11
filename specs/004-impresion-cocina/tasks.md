@@ -89,12 +89,13 @@ una condición verificable de "Hecho cuando".
   parte con `textwrap`, y las líneas siguientes quedan alineadas con
   una sangría de 4 espacios, sin cortar ninguna palabra a mitad.
 
-- [x] **T11 — Bloque de notas destacadas**
+- [x] **T11 — Notas destacadas bajo su ítem**
   RF: RF-6
-  Hecho cuando: si hay ítems con nota, aparecen agrupadas al inicio del
-  ticket (antes de la lista de productos) con el formato
-  `*** NOTA (<ítem>): <texto> ***` en mayúsculas, una por ítem con
-  nota; si ninguno tiene nota, no aparece ningún bloque.
+  Hecho cuando: cada nota aparece justo debajo de la línea de su ítem,
+  con sangría alineada al nombre, con el formato
+  `*** NOTA: <texto> ***` en mayúsculas; si ningún ítem tiene nota, no
+  aparece ninguna línea de nota. (Rehecho 2026-10-11: antes iban
+  agrupadas al inicio.)
 
 - [x] **T12 — Contenido "PEDIDO NUEVO"**
   RF: RF-3

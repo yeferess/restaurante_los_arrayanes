@@ -82,21 +82,26 @@ def format_item_line(quantity, name: str) -> list[str]:
     return lines
 
 
-def build_notes_block(items) -> list[str]:
-    """Notes grouped at the top of the ticket, one `*** NOTA ... ***`
-    marker per item that has one — never repeated next to the item's
-    own line further down (RF-6)."""
-    width = _columns()
-    lines: list[str] = []
-    for item in items:
-        if not item.note:
-            continue
-        marker = (
-            f"*** NOTA ({to_ascii(item.name).upper()}): "
-            f"{to_ascii(item.note).upper()} ***"
-        )
-        lines.extend(textwrap.wrap(marker, width=width, subsequent_indent="    "))
-    return lines
+def format_note_lines(quantity, note: str) -> list[str]:
+    """The item's note, right under its own line, as a
+    `*** NOTA: ... ***` marker indented to align with the item's name
+    (RF-6). Empty when the item has no note."""
+    if not note:
+        return []
+    indent = " " * len(f"{quantity}x ")
+    marker = f"*** NOTA: {to_ascii(note).upper()} ***"
+    return textwrap.wrap(
+        marker,
+        width=_columns(),
+        initial_indent=indent,
+        subsequent_indent=indent,
+    )
+
+
+def format_item_with_note(item) -> list[str]:
+    return format_item_line(item.quantity, to_ascii(item.name)) + format_note_lines(
+        item.quantity, item.note
+    )
 
 
 def _since_reference(order):
@@ -142,23 +147,19 @@ def build_ticket_text(job: PrintJob) -> str:
     order = job.order
 
     added_items, void_actions = _pending_changes(order)
-    voided_items = [action.item for action in void_actions if action.item is not None]
     show_section_labels = bool(added_items) and bool(void_actions)
-
-    lines.extend(build_notes_block(added_items + voided_items))
 
     if added_items:
         if show_section_labels:
             lines.append("Agregado:")
         for item in added_items:
-            lines.extend(format_item_line(item.quantity, to_ascii(item.name)))
+            lines.extend(format_item_with_note(item))
 
     if void_actions:
         if show_section_labels:
             lines.append("Anulado:")
         for action in void_actions:
-            item = action.item
-            lines.extend(format_item_line(item.quantity, to_ascii(item.name)))
+            lines.extend(format_item_with_note(action.item))
             lines.append(f"    Motivo: {to_ascii(action.reason or '')}")
 
     return "\n".join(lines)

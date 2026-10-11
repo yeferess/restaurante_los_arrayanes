@@ -124,16 +124,17 @@ sobre sus propios pedidos.
 ### RF-6 — Notas destacadas
 
 - Si uno o más de los ítems incluidos en un ticket (de cualquiera de los
-  3 tipos) tiene una nota (003 RF-4), el sistema deberá mostrar esas
-  notas agrupadas al inicio del ticket, antes de listar los productos,
-  cada una indicando a qué ítem pertenece.
+  3 tipos) tiene una nota (003 RF-4), el sistema deberá imprimir cada
+  nota justo debajo de la línea de su propio ítem, con sangría alineada
+  al nombre del ítem.
 - El sistema deberá destacar cada nota envolviéndola en un marcador de
-  texto en mayúsculas, con el formato
-  `*** NOTA (nombre del ítem): texto de la nota ***`.
-- Un ítem con nota no deberá repetir la nota junto a su línea en la
-  lista de productos — solo aparece una vez, en el bloque inicial.
+  texto en mayúsculas, con el formato `*** NOTA: texto de la nota ***`.
+- Cada nota aparece una sola vez en el ticket, bajo su ítem; no hay un
+  bloque de notas separado.
 - Si ningún ítem incluido en el ticket tiene nota, el ticket no deberá
-  llevar ningún bloque de notas.
+  llevar ninguna línea de nota.
+- *(Cambio 2026-10-11: antes las notas se agrupaban al inicio del
+  ticket; cocina pidió verlas junto al plato.)*
 
 ### RF-7 — Formato del ticket
 
@@ -241,8 +242,8 @@ sobre sus propios pedidos.
 
 ## Casos límite
 
-- Un pedido tiene notas en más de un ítem → todas aparecen agrupadas al
-  inicio del ticket, cada una etiquetada con el nombre de su ítem (RF-6).
+- Un pedido tiene notas en más de un ítem → cada nota aparece debajo de
+  su propio ítem (RF-6).
 - Se anula el último ítem activo de un pedido (auto-anulación del pedido
   completo, 003 RF-6/RF-11) → no se imprime ningún ticket (RF-1).
 - Se anula un pedido completo de forma manual (003 RF-11) → no se

@@ -189,9 +189,10 @@ resuelta). Si el pedido no tiene número del día (enviado antes de este
 cambio), el campo se imprime en blanco en su lugar (003-RF-14, caso
 transitorio).
 
-**Bloque de notas** (RF-6): una línea por nota, con el marcador
-`*** NOTA (ítem): texto ***` en mayúsculas, envuelta con la misma regla
-de ajuste si no cabe en una línea.
+**Notas** (RF-6): cada nota va justo debajo de la línea de su ítem, con
+el marcador `*** NOTA: texto ***` en mayúsculas y la sangría alineada al
+nombre del ítem; si no cabe en una línea se envuelve con esa misma
+sangría (`format_note_lines` en `rendering.py`).
 
 **Sin color rojo** (RF-7): todo el ticket se manda como texto ESC/POS
 plano en el color por defecto de la cinta instalada — este módulo nunca
@@ -206,10 +207,8 @@ emite el comando ESC/POS de cambio de color.
 N° 7                  Enviado 10/03 20:15
 Mesero: cgarcia       Impreso 10/03 20:16
 ----------------------------------------
-*** NOTA (LIMONADA NATURAL):
-    SIN AZUCAR ***
-----------------------------------------
 2x Limonada natural
+   *** NOTA: SIN AZUCAR ***
 1x Sancocho de gallina
 1x Postre de la casa (fuera de carta)
 ========================================
@@ -505,7 +504,7 @@ Cumpliendo la regla 6 de la constitución.
 ### Unitarios — `rendering.py` (sin HTTP, sin impresora)
 
 - Maqueta exacta de cada tipo de ticket (RF-2 a RF-7): encabezado,
-  metadatos, bloque de notas, lista de ítems, ajuste de línea por
+  metadatos, lista de ítems con su nota debajo, ajuste de línea por
   nombre largo.
 - Consolidación (RF-8): un ticket "ADICIÓN" pendiente que absorbe una
   anulación antes de imprimirse muestra ambas secciones bajo el mismo
@@ -589,7 +588,7 @@ sí:
 | RF-3 | Sección 3 (maqueta "PEDIDO NUEVO"), Sección 5 (`desde = order.created_at` en el primer ticket) |
 | RF-4 | Sección 3 (maqueta "ADICIÓN") |
 | RF-5 | Sección 3 (maqueta "ANULACIÓN") |
-| RF-6 | Sección 3 (bloque de notas y marcador) |
+| RF-6 | Sección 3 (nota bajo su ítem y marcador) |
 | RF-7 | Sección 3 (ancho configurable, un solo color) |
 | RF-8 | Sección 2 (`PrintJob`, invariante de un solo `PENDING` por pedido), Sección 5 (pseudocódigo, derivación del contenido), Decisión técnica 2 y 3 |
 | RF-9 | Sección 4 (categorías de error), Sección 5 (lock, síncrono), Sección 6 (`print_warning`), Decisión técnica 5 y 6 |

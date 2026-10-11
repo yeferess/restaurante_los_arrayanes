@@ -5,9 +5,9 @@ from django.utils import timezone
 
 from apps.kitchen_printing.models import PrintJob
 from apps.kitchen_printing.rendering import (
-    build_notes_block,
     build_ticket_text,
     format_item_line,
+    format_note_lines,
     to_ascii,
 )
 from apps.orders.models import Order, OrderAction, OrderItem
@@ -154,7 +154,7 @@ class NewOrderContentTests(TestCase):
         )
         self.assertNotIn("Jugo de mora", build_ticket_text(job))
 
-    def test_notes_block_appears_before_the_item_list(self):
+    def test_note_appears_right_under_its_own_item(self):
         OrderItem.objects.create(
             order=self.order,
             name="Limonada natural",
@@ -162,11 +162,17 @@ class NewOrderContentTests(TestCase):
             quantity=1,
             note="sin azucar",
         )
+        OrderItem.objects.create(
+            order=self.order, name="Sancocho", unit_price="20.00", quantity=1
+        )
         job = PrintJob.objects.create(
             order=self.order, ticket_type=PrintJob.TicketType.NEW_ORDER
         )
-        text = build_ticket_text(job)
-        self.assertLess(text.index("*** NOTA"), text.index("1x Limonada natural"))
+        lines = build_ticket_text(job).split("\n")
+        item_index = lines.index("1x Limonada natural")
+        self.assertEqual(lines[item_index + 1], "   *** NOTA: SIN AZUCAR ***")
+        self.assertEqual(lines[item_index + 2], "1x Sancocho")
+        self.assertEqual(sum("*** NOTA" in line for line in lines), 1)
 
 
 @override_settings(KITCHEN_PRINTER_COLUMNS=40)
@@ -309,62 +315,30 @@ class OmitItemsVoidedBeforeFirstPrintTests(TestCase):
 
 
 @override_settings(KITCHEN_PRINTER_COLUMNS=40)
-class BuildNotesBlockTests(TestCase):
-    """T11 — notes block, grouped at the top with the *** NOTA *** marker
-    (RF-6)."""
+class FormatNoteLinesTests(TestCase):
+    """T11 — an item's note, right under its own line with the
+    *** NOTA *** marker (RF-6)."""
 
-    def setUp(self):
-        self.waiter = User.objects.create_user(
-            username="cgarcia2", password="1234", role=User.Role.MESERO
-        )
-        self.order = Order.objects.create(table_number=5, waiter=self.waiter)
+    def test_returns_empty_when_the_item_has_no_note(self):
+        self.assertEqual(format_note_lines(1, ""), [])
 
-    def test_returns_empty_when_no_item_has_a_note(self):
-        item = OrderItem.objects.create(
-            order=self.order, name="Limonada natural", unit_price="4.50", quantity=1
-        )
-        self.assertEqual(build_notes_block([item]), [])
+    def test_short_note_is_one_marker_line_aligned_with_the_item_name(self):
+        self.assertEqual(format_note_lines(3, "sin cebolla"), ["   *** NOTA: SIN CEBOLLA ***"])
 
-    def test_one_item_with_a_note(self):
-        item = OrderItem.objects.create(
-            order=self.order,
-            name="Limonada natural",
-            unit_price="4.50",
-            quantity=1,
-            note="sin azucar",
-        )
-        lines = build_notes_block([item])
-        block = "\n".join(lines)
-        self.assertIn("*** NOTA (LIMONADA NATURAL):", block)
-        self.assertIn("SIN AZUCAR", block)
-        self.assertTrue(block.rstrip().endswith("***"))
-        # continuation lines (if the marker had to wrap) keep the hanging indent
-        for line in lines[1:]:
-            self.assertTrue(line.startswith("    "))
+    def test_indent_follows_the_width_of_the_quantity(self):
+        self.assertEqual(format_note_lines(12, "sin sal"), ["    *** NOTA: SIN SAL ***"])
 
-    def test_one_marker_per_item_with_a_note_others_are_skipped(self):
-        with_note = OrderItem.objects.create(
-            order=self.order,
-            name="Limonada natural",
-            unit_price="4.50",
-            quantity=1,
-            note="sin azucar",
-        )
-        without_note = OrderItem.objects.create(
-            order=self.order, name="Sancocho", unit_price="20.00", quantity=1
-        )
-        block = "\n".join(build_notes_block([with_note, without_note]))
-        self.assertEqual(block.count("*** NOTA"), 1)
+    def test_strips_accents(self):
+        self.assertEqual(format_note_lines(1, "sin azúcar"), ["   *** NOTA: SIN AZUCAR ***"])
 
-    def test_no_line_exceeds_the_configured_width(self):
-        item = OrderItem.objects.create(
-            order=self.order,
-            name="Postre de la casa",
-            unit_price="6.00",
-            quantity=1,
-            note="una nota bastante larga que no cabe en una sola linea del ticket",
+    def test_long_note_wraps_keeping_the_indent_and_the_width(self):
+        lines = format_note_lines(
+            1, "una nota bastante larga que no cabe en una sola linea del ticket"
         )
-        for line in build_notes_block([item]):
+        self.assertGreater(len(lines), 1)
+        self.assertTrue(lines[-1].endswith("***"))
+        for line in lines:
+            self.assertTrue(line.startswith("   "))
             self.assertLessEqual(len(line), 40)
 
 
