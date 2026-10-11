@@ -185,6 +185,8 @@ AUTH_USER_MODEL = "accounts.User"
 
 KITCHEN_PRINTER_COLUMNS = 40
 KITCHEN_PRINTER_ADAPTER = "escpos"
+# Blank lines fed after each ticket so it clears the tear bar.
+KITCHEN_PRINTER_FEED_LINES = 6
 
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",

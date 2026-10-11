@@ -1,6 +1,8 @@
 from unittest import TestCase
 from unittest.mock import MagicMock, patch
 
+from django.test import override_settings
+
 from apps.kitchen_printing.adapters import PrinterFailureError, PrinterNotDetectedError
 from apps.kitchen_printing.escpos_adapter import EscposUsbPrinterAdapter
 
@@ -24,10 +26,23 @@ class EscposUsbPrinterAdapterTests(TestCase):
         mock_win32print.StartPagePrinter.assert_called_once_with("handle-1")
         mock_win32print.WritePrinter.assert_called_once()
         written_bytes = mock_win32print.WritePrinter.call_args[0][1]
-        self.assertEqual(written_bytes, "hola cocina".encode("cp437", errors="replace"))
+        self.assertTrue(written_bytes.startswith(b"hola cocina"))
         mock_win32print.EndPagePrinter.assert_called_once_with("handle-1")
         mock_win32print.EndDocPrinter.assert_called_once_with("handle-1")
         mock_win32print.ClosePrinter.assert_called_once_with("handle-1")
+
+    @override_settings(KITCHEN_PRINTER_FEED_LINES=4)
+    @patch("apps.kitchen_printing.escpos_adapter.win32print")
+    def test_ends_the_last_line_and_feeds_blank_lines_to_clear_the_tear_bar(
+        self, mock_win32print
+    ):
+        mock_win32print.OpenPrinter.return_value = "handle-1"
+        adapter = EscposUsbPrinterAdapter(printer_name="Epson TM-U220")
+
+        adapter.print_ticket("linea 1\nlinea 2")
+
+        written_bytes = mock_win32print.WritePrinter.call_args[0][1]
+        self.assertEqual(written_bytes, b"linea 1\nlinea 2" + b"\n" * 5)
 
     @patch("apps.kitchen_printing.escpos_adapter.win32print")
     def test_printer_not_found_raises_printer_not_detected_error(self, mock_win32print):

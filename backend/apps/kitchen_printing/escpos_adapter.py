@@ -8,6 +8,7 @@ restaurant makes of the same printer from Windows.
 """
 
 import win32print
+from django.conf import settings
 
 from apps.kitchen_printing.adapters import (
     PrinterAdapter,
@@ -29,10 +30,18 @@ class EscposUsbPrinterAdapter(PrinterAdapter):
         try:
             win32print.StartDocPrinter(handle, 1, ("Ticket de cocina", None, "RAW"))
             win32print.StartPagePrinter(handle)
-            win32print.WritePrinter(handle, text.encode("cp437", errors="replace"))
+            win32print.WritePrinter(handle, self._with_paper_feed(text))
             win32print.EndPagePrinter(handle)
             win32print.EndDocPrinter(handle)
         except Exception as exc:
             raise PrinterFailureError(str(exc)) from exc
         finally:
             win32print.ClosePrinter(handle)
+
+    @staticmethod
+    def _with_paper_feed(text: str) -> bytes:
+        """Ends the last line and feeds blank lines so the whole ticket
+        clears the tear bar — the TM-U220's print head sits a few lines
+        below it. Plain line feeds, no extra ESC/POS commands."""
+        feed_lines = getattr(settings, "KITCHEN_PRINTER_FEED_LINES", 6)
+        return (text + "\n" * (1 + feed_lines)).encode("cp437", errors="replace")
