@@ -7,6 +7,7 @@ vi.mock("@/lib/api/orders", () => ({
   getOrder: vi.fn(),
   addItem: vi.fn(),
   voidItem: vi.fn(),
+  removeItem: vi.fn(),
   sendOrder: vi.fn(),
   fixTable: vi.fn(),
   listTables: vi.fn(),
@@ -21,6 +22,7 @@ import {
   getOrder,
   addItem,
   voidItem,
+  removeItem,
   sendOrder,
   fixTable,
   listTables,
@@ -74,6 +76,7 @@ describe("OrderBuilder (T66, RF-3/4/5/6/7)", () => {
     vi.mocked(getOrder).mockReset();
     vi.mocked(addItem).mockReset();
     vi.mocked(voidItem).mockReset();
+    vi.mocked(removeItem).mockReset();
     vi.mocked(sendOrder).mockReset();
     vi.mocked(fixTable).mockReset();
     vi.mocked(listTables).mockReset();
@@ -112,6 +115,39 @@ describe("OrderBuilder (T66, RF-3/4/5/6/7)", () => {
     await screen.findByText(/en preparación/i);
     unmount();
     expect(deleteOrder).not.toHaveBeenCalled();
+  });
+
+  it("removes an item from a draft without asking for a reason (RF-2)", async () => {
+    const user = userEvent.setup();
+    const promptSpy = vi.spyOn(window, "prompt");
+    vi.mocked(removeItem).mockResolvedValue(undefined);
+    vi.mocked(getOrder).mockResolvedValueOnce({ ...IN_PROGRESS_ORDER, status: "DRAFT" });
+    vi.mocked(getOrder).mockResolvedValue(DRAFT_ORDER);
+    render(<OrderBuilder orderId={41} />);
+
+    await user.click(await screen.findByRole("button", { name: /^eliminar$/i }));
+
+    expect(removeItem).toHaveBeenCalledWith(41, 100);
+    expect(promptSpy).not.toHaveBeenCalled();
+    expect(await screen.findByText(/todavía no agregaste ningún ítem/i)).toBeInTheDocument();
+  });
+
+  it("shows the error when removing an item fails", async () => {
+    const user = userEvent.setup();
+    vi.mocked(removeItem).mockRejectedValue({ detail: ["Solo se pueden quitar ítems de un pedido en borrador."] });
+    vi.mocked(getOrder).mockResolvedValue({ ...IN_PROGRESS_ORDER, status: "DRAFT" });
+    render(<OrderBuilder orderId={41} />);
+
+    await user.click(await screen.findByRole("button", { name: /^eliminar$/i }));
+
+    expect(await screen.findByText(/solo se pueden quitar ítems/i)).toBeInTheDocument();
+  });
+
+  it("offers 'Anular' instead of 'Eliminar' once the order was sent", async () => {
+    vi.mocked(getOrder).mockResolvedValue(IN_PROGRESS_ORDER);
+    render(<OrderBuilder orderId={41} />);
+    expect(await screen.findByRole("button", { name: /^anular$/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^eliminar$/i })).not.toBeInTheDocument();
   });
 
   it("shows the order and lets the mesero send it", async () => {

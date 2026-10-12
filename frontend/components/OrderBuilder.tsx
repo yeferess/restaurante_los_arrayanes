@@ -6,6 +6,7 @@ import {
   getOrder,
   addItem,
   voidItem,
+  removeItem,
   sendOrder,
   fixTable,
   listTables,
@@ -134,6 +135,17 @@ export function OrderBuilder({ orderId }: { orderId: number }) {
     }
   }
 
+  /** RF-2: in a draft a line is simply removed — no reason, no trace. */
+  async function handleRemoveItem(itemId: number) {
+    setMessage(null);
+    try {
+      await removeItem(orderId, itemId);
+      await refresh();
+    } catch (error) {
+      setMessage(formatError(error));
+    }
+  }
+
   async function handleVoidItem(itemId: number) {
     const reason = window.prompt("Motivo de la anulación:");
     if (!reason) return;
@@ -209,6 +221,15 @@ export function OrderBuilder({ orderId }: { orderId: number }) {
                   {item.note && <span className={styles.itemNote}>{item.note}</span>}
                   {item.is_voided && <span className={styles.itemVoidedTag}>Anulado</span>}
                 </div>
+                {order.status === "DRAFT" && (
+                  <button
+                    type="button"
+                    className={styles.voidButton}
+                    onClick={() => handleRemoveItem(item.id)}
+                  >
+                    Eliminar
+                  </button>
+                )}
                 {!item.is_voided && order.status === "IN_PROGRESS" && (
                   <button
                     type="button"

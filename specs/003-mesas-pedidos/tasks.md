@@ -626,3 +626,11 @@ condición verificable de "Hecho cuando".
   defecto, sin fechas futuras) y mensaje vacío. Tests en
   `test_views_my_orders.py`, `MyOrdersList.test.tsx` y
   `lib/api/orders.test.ts`.
+
+- [x] **T89 — Frontend: "Eliminar" ítem en borrador**
+  RF: RF-2
+  Hecho cuando: en `OrderBuilder.tsx`, cada ítem de un pedido en
+  "borrador" muestra "Eliminar", que quita la línea sin pedir motivo
+  (`DELETE /api/pedidos/{id}/items/{item_id}`, ya existente) y refresca
+  el pedido; una vez enviado, el ítem solo ofrece "Anular" con motivo
+  (RF-6). Tests en `OrderBuilder.test.tsx`.
