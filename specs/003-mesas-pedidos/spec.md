@@ -222,6 +222,8 @@ arman los pedidos), y respeta las reglas 4 y 5 de
   como entregado.
 - Si un mesero intenta cobrar un pedido, entonces el sistema deberá
   rechazar la acción (acción exclusiva de admin).
+- El sistema deberá mostrar en cada tarjeta del panel de pedidos
+  entrantes del admin el mesero que tomó el pedido.
 - Si la mesa no está ocupada (está libre o ya pagada), entonces el
   sistema deberá rechazar el cobro.
 
@@ -338,6 +340,53 @@ arman los pedidos), y respeta las reglas 4 y 5 de
   empieza limpia desde el primer pedido que se envíe después del
   despliegue.
 
+### RF-15 — Mesas retenidas por pedidos olvidados
+
+- Si un pedido en "borrador" lleva más de 10 minutos desde su creación
+  sin ningún ítem, o fue creado en un día anterior (hora local), tenga o
+  no ítems, entonces el sistema deberá eliminarlo — igual que
+  "Eliminar" en RF-2, sin motivo ni rastro — y volver su mesa a "libre".
+  La limpieza ocurre de forma perezosa, la próxima vez que alguien lea
+  las mesas, la lista de pedidos del mesero o las mesas ocupadas, o
+  intente crear un pedido; nunca se elimina un borrador de hoy que tenga
+  ítems, ni un pedido ya enviado. Así ningún borrador se guarda de un
+  día para otro.
+- Cuando el mesero sale de la pantalla de un pedido en "borrador" que no
+  tiene ningún ítem, el sistema deberá eliminarlo de inmediato, sin
+  esperar los 10 minutos.
+- Mientras un pedido en "borrador" con ítems lleve más de 15 minutos sin
+  enviarse, el sistema deberá mostrarle a su mesero, en su lista de
+  pedidos, el aviso "Borrador sin enviar: envíalo o elimínalo para
+  liberar la mesa".
+- El sistema deberá permitir al admin ver cada mesa ocupada junto con el
+  pedido que la retiene (estado "borrador" o "en preparación", mesero,
+  desde cuándo, cantidad de ítems y total), y anular ese pedido desde
+  ahí con el mismo flujo de RF-11 (motivo obligatorio y trazabilidad de
+  RF-12).
+- Cuando el pedido que retiene la mesa está en "borrador" — que el admin
+  no ve en los pedidos entrantes —, el sistema deberá ofrecerle
+  "Eliminar borrador": con solo confirmar, el pedido queda anulado y la
+  mesa vuelve a "libre". Sigue siendo una anulación de pedido completo
+  (RF-11) con trazabilidad (RF-12, regla 4): el sistema registra quién y
+  cuándo, con el motivo fijo "Borrador eliminado por el admin", sin
+  pedirle que lo escriba. Un pedido ya enviado no admite esta acción.
+- Si una mesa lleva más de 3 horas ocupada por el mismo pedido, el
+  sistema deberá destacarla en esa vista y mostrar en el panel de
+  pedidos entrantes del admin el aviso "Hay N mesas ocupadas desde hace
+  más de 3 horas", con un enlace a la gestión de mesas.
+
+### RF-16 — "Mis pedidos" por día
+
+- Cuando un mesero abre "Mis pedidos", el sistema deberá mostrarle los
+  pedidos que creó hoy (hora local), más los de días anteriores que
+  siguen pendientes: los que están "en preparación" y el pedido cobrado
+  de una mesa que sigue "pagada" (para poder liberarla, RF-10).
+- El sistema deberá permitirle elegir otra fecha (nunca futura) y, en
+  ese caso, mostrar solo los pedidos que creó ese día, en cualquier
+  estado.
+- Si la fecha no tiene el formato AAAA-MM-DD, el sistema deberá rechazar
+  la consulta.
+
 ## Requisitos no funcionales
 
 - El sistema deberá operar completamente dentro de la red WiFi local del
@@ -435,7 +484,22 @@ arman los pedidos), y respeta las reglas 4 y 5 de
   un pedido ya enviado → RF-14 (sigue mostrando el mismo número del día
   que ya tenía; nunca genera uno nuevo).
 - Un pedido se queda en "borrador" y nunca se envía → RF-14 (nunca llega
-  a tener número del día).
+  a tener número del día) y RF-15 (si no tiene ítems se elimina solo a
+  los 10 minutos; si tiene ítems, su mesero ve un aviso a los 15 minutos,
+  el admin puede eliminarlo con un clic desde la gestión de mesas, y en
+  cualquier caso desaparece al día siguiente).
+- Un pedido se envía antes de medianoche y sigue "en preparación" al día
+  siguiente → RF-16 (sigue apareciendo en "Mis pedidos" de hoy hasta que
+  se cobra o se anula).
+- Una mesa se cobra antes de medianoche y nadie la libera → RF-16 (su
+  pedido sigue en "Mis pedidos" de hoy, con "Liberar mesa", hasta que se
+  libera).
+- Un mesero toca una mesa por error y sale sin agregar nada → RF-15 (el
+  borrador vacío se elimina al salir de la pantalla del pedido, o a los
+  10 minutos si la salida no se detecta, por ejemplo al bloquear el
+  teléfono).
+- Un pedido enviado nunca se cobra ni se anula → RF-15 (a las 3 horas el
+  admin ve el aviso de mesa ocupada y la anula con motivo, o la cobra).
 - Un pedido ya estaba enviado antes de desplegar el número del día → RF-14
   (no se le asigna uno retroactivamente; queda sin número de forma
   permanente).
@@ -481,7 +545,8 @@ arman los pedidos), y respeta las reglas 4 y 5 de
   identificadores personalizados ni eliminación de una mesa específica
   fuera de la más alta.
 - Una vista en tiempo real tipo dashboard para el admin sobre todas las
-  mesas/pedidos — no fue solicitada para este módulo (a diferencia de la
+  mesas/pedidos, más allá de la lista de mesas ocupadas de RF-15 — no fue
+  solicitada para este módulo (a diferencia de la
   propagación en tiempo real del menú en 002-gestion-menu).
 - Mostrar o usar el identificador interno del pedido en cualquier
   pantalla de mesero, admin o cocina (RF-14) — nunca se muestra; solo

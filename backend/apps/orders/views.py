@@ -11,7 +11,12 @@ from rest_framework.views import APIView
 from apps.orders import services
 from apps.orders.models import Order, OrderItem, Table
 from apps.orders.permissions import IsAdmin, IsMesero
-from apps.orders.serializers import OrderItemSerializer, OrderSerializer, TableSerializer
+from apps.orders.serializers import (
+    OccupiedTableSerializer,
+    OrderItemSerializer,
+    OrderSerializer,
+    TableSerializer,
+)
 from apps.payments.models import Payment
 
 
@@ -40,6 +45,20 @@ def _parse_price(raw):
         return raw
 
 
+def _day_from_query(request):
+    """`?fecha=YYYY-MM-DD` as a date (today, local, when omitted)."""
+    raw_date = request.query_params.get("fecha")
+    if not raw_date:
+        return timezone.localdate(), None
+    try:
+        return datetime.date.fromisoformat(raw_date), None
+    except ValueError:
+        return None, Response(
+            {"detail": ["La fecha debe tener el formato AAAA-MM-DD."]},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+
 def _get_own_order_or_error(request, pk):
     try:
         order = Order.objects.get(pk=pk)
@@ -54,8 +73,21 @@ class TableListView(APIView):
     """GET /api/mesas (RF-1, RF-13). Any authenticated account."""
 
     def get(self, request):
+        services.discard_stale_drafts()
         tables = Table.objects.order_by("number")
         return Response(TableSerializer(tables, many=True).data)
+
+
+class OccupiedTablesView(APIView):
+    """GET /api/mesas/ocupadas (RF-15). Admin-only: each occupied table
+    with the order holding it, so a forgotten one can be voided."""
+
+    permission_classes = [IsAdmin]
+
+    def get(self, request):
+        services.discard_stale_drafts()
+        tables = Table.objects.filter(status=Table.Status.OCCUPIED).order_by("number")
+        return Response(OccupiedTableSerializer(tables, many=True).data)
 
 
 class ResizeTablesView(APIView):
@@ -125,7 +157,11 @@ class MyOrdersView(APIView):
     permission_classes = [IsMesero]
 
     def get(self, request):
-        orders = Order.objects.filter(waiter=request.user).order_by("-created_at")
+        day, error = _day_from_query(request)
+        if error:
+            return error
+        services.discard_stale_drafts()
+        orders = services.my_orders_for_day(request.user, day)
         return Response(OrderSerializer(orders, many=True).data)
 
 
@@ -150,17 +186,9 @@ class ChargedOrdersView(APIView):
     permission_classes = [IsAdmin]
 
     def get(self, request):
-        raw_date = request.query_params.get("fecha")
-        if raw_date:
-            try:
-                day = datetime.date.fromisoformat(raw_date)
-            except ValueError:
-                return Response(
-                    {"detail": ["La fecha debe tener el formato AAAA-MM-DD."]},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-        else:
-            day = timezone.localdate()
+        day, error = _day_from_query(request)
+        if error:
+            return error
 
         active_charged_at = Payment.objects.filter(
             order=OuterRef("pk"), status=Payment.Status.ACTIVE
@@ -357,6 +385,26 @@ class VoidOrderView(APIView):
             )
         try:
             services.void_order(order, request.user, reason)
+        except DjangoValidationError as exc:
+            return Response(
+                {"detail": exc.messages}, status=status.HTTP_409_CONFLICT
+            )
+        return Response(OrderSerializer(order).data)
+
+
+class DiscardDraftView(APIView):
+    """POST /api/pedidos/{id}/eliminar-borrador (RF-15). Admin-only:
+    one-click void of a draft with a fixed reason (RF-11/RF-12)."""
+
+    permission_classes = [IsAdmin]
+
+    def post(self, request, pk):
+        try:
+            order = Order.objects.get(pk=pk)
+        except Order.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        try:
+            services.discard_draft_by_admin(order, request.user)
         except DjangoValidationError as exc:
             return Response(
                 {"detail": exc.messages}, status=status.HTTP_409_CONFLICT

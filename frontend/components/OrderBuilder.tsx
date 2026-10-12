@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import {
+  deleteOrder,
   getOrder,
   addItem,
   voidItem,
@@ -73,6 +74,21 @@ export function OrderBuilder({ orderId }: { orderId: number }) {
   useEffect(() => {
     refresh().catch((error) => setMessage(formatError(error)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orderId]);
+
+  // RF-15: leaving the screen with a draft that never got an item
+  // discards it, so a mistaken tap doesn't keep the table occupied.
+  const latestOrder = useRef<Order | null>(null);
+  useEffect(() => {
+    latestOrder.current = order;
+  }, [order]);
+  useEffect(() => {
+    return () => {
+      const current = latestOrder.current;
+      if (current?.status === "DRAFT" && current.items.length === 0) {
+        deleteOrder(current.id).catch(() => {});
+      }
+    };
   }, [orderId]);
 
   async function handleAddItem(event: FormEvent<HTMLFormElement>) {

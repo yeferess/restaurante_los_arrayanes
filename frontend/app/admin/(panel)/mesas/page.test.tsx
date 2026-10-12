@@ -4,6 +4,10 @@ import { render, screen } from "@testing-library/react";
 vi.mock("@/lib/api/orders", () => ({
   listTables: vi.fn().mockResolvedValue([]),
   resizeTables: vi.fn(),
+  listOccupiedTables: vi.fn().mockResolvedValue([]),
+}));
+vi.mock("@/lib/api/ordersSocket", () => ({
+  subscribeToOrderUpdates: vi.fn(() => ({ close: vi.fn() })),
 }));
 
 import MesasPage from "./page";

@@ -4,11 +4,43 @@
   margin: 0 auto;
 }
 
+.headerRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  margin-bottom: 1rem;
+}
+
 .heading {
   font-size: 1.4rem;
   font-weight: 700;
   color: var(--ink);
-  margin-bottom: 1rem;
+}
+
+.dateLabel {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.dateInput {
+  min-height: 2.5rem;
+  padding: 0 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.6rem;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 0.9rem;
+}
+
+.empty {
+  color: var(--muted);
+  font-size: 0.9rem;
 }
 
 .message {
@@ -124,6 +156,16 @@
 .badgePrintPending {
   background: var(--status-danger-soft);
   color: var(--status-danger);
+}
+
+.draftReminder {
+  background: var(--status-occupied-soft);
+  color: var(--status-occupied);
+  border-radius: 0.6rem;
+  padding: 0.5rem 0.7rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin: -0.35rem 0 0.85rem;
 }
 
 .total {

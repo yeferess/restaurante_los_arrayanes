@@ -298,8 +298,8 @@ sesión (heredada del módulo 001). Todas las respuestas de error usan
 | 1 | `/api/mesas` | GET | RF-1, RF-13, RF-14 | admin o mesero | — | `[{numero, estado, numero_dia_pedido_activo}]` | 401 |
 | 2 | `/api/mesas/numero` | PATCH | RF-1 | admin | `{numero}` | 200 `[{numero, estado}]` | 400 numero<1 o no entero; 409 alguna mesa a eliminar no está libre; 403 mesero |
 | 3 | `/api/pedidos` | POST | RF-2 | mesero | `{mesa_numero}` | 201 `{id, mesa_numero, estado, entregado, numero_dia: null, enviado_en: null}` | 400 mesa no existe; 409 mesa no libre; 403 admin |
-| 4 | `/api/pedidos/mios` | GET | RF-8, RF-10, RF-13 | mesero | — | `[{id, mesa_numero, estado, entregado, total, numero_dia, enviado_en}]` (solo del mesero autenticado) | 401 |
-| 5 | `/api/pedidos/entrantes` | GET | soporta RF-9, RF-11 (panel admin) | admin | — | `[{id, mesa_numero, estado, entregado, items, total, numero_dia, enviado_en}]` (excluye cobrados/anulados) | 403 mesero |
+| 4 | `/api/pedidos/mios?fecha=AAAA-MM-DD` | GET | RF-8, RF-10, RF-13, RF-16 | mesero | — | `[{id, mesa_numero, estado, entregado, total, numero_dia, enviado_en}]` (solo del mesero autenticado; por defecto hoy más los pendientes de días anteriores, `services.my_orders_for_day`) | 400 fecha inválida; 401 |
+| 5 | `/api/pedidos/entrantes` | GET | soporta RF-9, RF-11 (panel admin) | admin | — | `[{id, mesa_numero, estado, entregado, items, total, numero_dia, enviado_en, waiter_username}]` (excluye cobrados/anulados) | 403 mesero |
 | 6 | `/api/pedidos/{id}` | GET | RF-13 | dueño o admin | — | `{id, mesa_numero, estado, entregado, items, total, numero_dia, enviado_en}` | 403 mesero ajeno; 404 |
 | 7 | `/api/pedidos/{id}/items` | POST | RF-3, RF-4, RF-5 | dueño | `{producto_id}` **o** `{nombre, precio}`, + `cantidad?`, `nota?` | 201 (línea creada; `line_type` se infiere del estado del pedido) | 400 validación; 404 producto/pedido; 409 producto no disponible, o pedido cobrado/anulado; 403 no es el dueño |
 | 8 | `/api/pedidos/{id}/items/{item_id}` | DELETE | RF-2 | dueño | — | 204 | 409 el pedido ya no está en "borrador"; 403; 404 |
@@ -311,6 +311,19 @@ sesión (heredada del módulo 001). Todas las respuestas de error usan
 | 14 | `/api/pedidos/{id}/cobrar` | POST | RF-9 | admin | — | 200 | 409 mesa no ocupada; 403 mesero; 404 |
 | 15 | `/api/pedidos/{id}/anular` | POST | RF-11 | admin | `{motivo}` | 200 | 400 falta motivo; 409 ya cobrado; 403 mesero; 404 |
 | 16 | `/api/mesas/{numero}/liberar` | POST | RF-10 | mesero (cualquiera) | — | 200 | 409 mesa no está pagada; 403 admin; 404 mesa no existe |
+| 17 | `/api/mesas/ocupadas` | GET | RF-15 | admin | — | `[{number, order, is_stale}]` (`order` con el mismo formato del endpoint 6, o `null`) | 401; 403 mesero |
+| 18 | `/api/pedidos/{id}/eliminar-borrador` | POST | RF-15, RF-11, RF-12 | admin | — | 200 (pedido anulado, mesa libre; `OrderAction ORDER_VOIDED` con motivo fijo `DRAFT_DISCARD_REASON`) | 409 el pedido no está en "borrador"; 403 mesero; 404 |
+
+RF-15: `discard_stale_drafts()` (`services.py`) elimina los
+borradores sin ítems con más de `EMPTY_DRAFT_TTL` (10 min) y todos los
+borradores de un día anterior, y libera su mesa; se llama al inicio de los endpoints 1, 3, 4 y 17, sin tarea
+programada (regla 1: no se agrega infraestructura). Todo pedido expone
+`created_at` y `draft_reminder` (borrador con ítems y más de
+`DRAFT_REMINDER_AFTER`, 15 min); `is_stale` del endpoint 17 compara
+`created_at` con `STALE_TABLE_AFTER` (3 h). Los umbrales se calculan en
+el backend, nunca en el frontend (regla 3). El borrado inmediato al salir
+de la pantalla del pedido lo hace `OrderBuilder` llamando al endpoint de
+eliminación de RF-2 que ya existía.
 
 Endpoint 7 unifica "agregar ítem de catálogo", "agregar ítem fuera de
 carta" y "agregar adición" en una sola ruta (sección 5, decisión 2): el
@@ -692,4 +705,6 @@ acción sensible tiene al menos un test).
 | RF-11 | Sección 2 (`OrderAction.ORDER_VOIDED`/`ORDER_VOIDED_AUTO`), Sección 3 (endpoint 15), pseudocódigo `anular_item` (rama automática) |
 | RF-12 | Sección 2 (`OrderAction`), todas las funciones de servicio en sección 4/5 que llaman `registrar_accion` |
 | RF-13 | Sección 1 (`permissions.py`, `IsOrderOwner`), Sección 3 (endpoints 4-6, columna Auth), Sección 4 (consumer admin-only) |
+| RF-15 | Sección 3 (endpoints 17-18 y nota de RF-15 debajo de la tabla), Sección 6 |
+| RF-16 | Sección 3 (endpoint 4, `?fecha=`) |
 | RF-14 | Sección 2 (`Order.daily_number`/`sent_at`, `DailyOrderCounter`), Sección 3 (endpoint 1 `numero_dia_pedido_activo`, endpoints 3-6 y 11 `numero_dia`/`enviado_en`), Sección 4.1 (mecanismo de asignación, pseudocódigo), Decisión técnica 9, Sección 6 |

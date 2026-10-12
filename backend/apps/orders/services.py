@@ -5,6 +5,7 @@ Kept free of HTTP/request concerns so it can be unit tested directly
 """
 
 import threading
+from datetime import timedelta
 
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
@@ -18,6 +19,12 @@ from apps.orders.models import DailyOrderCounter, Order, OrderAction, OrderItem,
 
 ITEM_NAME_MAX_LENGTH = 100
 NOTE_MAX_LENGTH = 200
+
+# RF-15: thresholds that keep a forgotten order from holding a table.
+EMPTY_DRAFT_TTL = timedelta(minutes=10)
+DRAFT_REMINDER_AFTER = timedelta(minutes=15)
+STALE_TABLE_AFTER = timedelta(hours=3)
+DRAFT_DISCARD_REASON = "Borrador eliminado por el admin"
 
 # RF-14: a single process-wide lock serializes the read-increment-save
 # cycle on DailyOrderCounter, same pattern already used by
@@ -81,8 +88,76 @@ def resize_tables(new_count):
     return Table.objects.order_by("number")
 
 
+def discard_stale_drafts():
+    """RF-15: delete drafts left without a single item for longer than
+    EMPTY_DRAFT_TTL, and every draft from a previous local day (items or
+    not), freeing their tables — same "no trace" deletion as
+    delete_order. Called lazily from the reads/creates that would
+    otherwise see the table as occupied."""
+    drafts = Order.objects.filter(status=Order.Status.DRAFT)
+    stale = drafts.filter(
+        created_at__lte=timezone.now() - EMPTY_DRAFT_TTL, items__isnull=True
+    ) | drafts.filter(created_at__date__lt=timezone.localdate())
+    for order in stale.distinct():
+        _free_table(order.table_number)
+        order.delete()
+
+
+def my_orders_for_day(waiter, day):
+    """RF-16: the waiter's orders created on `day` (local). For today,
+    also the still-pending ones from earlier days: in progress, or the
+    latest charged order of a table that is still paid (to release it)."""
+    orders = Order.objects.filter(waiter=waiter)
+    selected = orders.filter(created_at__date=day)
+    if day == timezone.localdate():
+        earlier = orders.filter(created_at__date__lt=day)
+        carried_ids = list(
+            earlier.filter(status=Order.Status.IN_PROGRESS).values_list("id", flat=True)
+        )
+        paid_tables = Table.objects.filter(status=Table.Status.PAID).values_list(
+            "number", flat=True
+        )
+        for number in paid_tables:
+            latest_charged = (
+                Order.objects.filter(table_number=number, status=Order.Status.CHARGED)
+                .order_by("-created_at")
+                .first()
+            )
+            if latest_charged and latest_charged.waiter_id == waiter.id:
+                carried_ids.append(latest_charged.id)
+        selected = selected | orders.filter(id__in=carried_ids)
+    return selected.distinct().order_by("-created_at")
+
+
+def needs_draft_reminder(order):
+    """RF-15: a draft with items that has gone unsent for too long."""
+    return (
+        order.status == Order.Status.DRAFT
+        and order.created_at <= timezone.now() - DRAFT_REMINDER_AFTER
+        and order.items.exists()
+    )
+
+
+def active_order_for_table(table_number):
+    """RF-2: the single draft/in-progress order holding a table, if any."""
+    return (
+        Order.objects.filter(
+            table_number=table_number,
+            status__in=(Order.Status.DRAFT, Order.Status.IN_PROGRESS),
+        )
+        .order_by("-created_at")
+        .first()
+    )
+
+
+def is_stale_occupation(order):
+    """RF-15: the table has been held by this order for too long."""
+    return order.created_at <= timezone.now() - STALE_TABLE_AFTER
+
+
 def create_order(waiter, table_number):
     """RF-2: create a draft order on a free table."""
+    discard_stale_drafts()
     try:
         table = Table.objects.get(number=table_number)
     except Table.DoesNotExist:
@@ -370,3 +445,14 @@ def void_order(order, admin, reason):
     register_action(order, OrderAction.ActionType.ORDER_VOIDED, admin, reason=reason)
     notify_orders_changed()
     return order
+
+
+def discard_draft_by_admin(order, admin):
+    """RF-15: the admin frees a table held by a draft in one click. It is
+    still a whole-order void (RF-11), traced with a fixed reason so the
+    admin doesn't have to type one (constitution rule 4)."""
+    if order.status != Order.Status.DRAFT:
+        raise ValidationError(
+            "Solo se puede eliminar un pedido en borrador.", code="not_draft"
+        )
+    return void_order(order, admin, DRAFT_DISCARD_REASON)

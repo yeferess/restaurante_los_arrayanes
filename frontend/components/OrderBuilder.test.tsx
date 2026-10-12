@@ -10,13 +10,22 @@ vi.mock("@/lib/api/orders", () => ({
   sendOrder: vi.fn(),
   fixTable: vi.fn(),
   listTables: vi.fn(),
+  deleteOrder: vi.fn(),
 }));
 
 vi.mock("@/lib/api/menu", () => ({
   getMenu: vi.fn(),
 }));
 
-import { getOrder, addItem, voidItem, sendOrder, fixTable, listTables } from "@/lib/api/orders";
+import {
+  getOrder,
+  addItem,
+  voidItem,
+  sendOrder,
+  fixTable,
+  listTables,
+  deleteOrder,
+} from "@/lib/api/orders";
 import { getMenu } from "@/lib/api/menu";
 
 const DRAFT_ORDER = {
@@ -32,6 +41,8 @@ const DRAFT_ORDER = {
   active_payment: null,
   daily_number: null,
   sent_at: null,
+  created_at: "2026-03-10T18:55:00Z",
+  draft_reminder: false,
 };
 
 const DELIVERED_ORDER = {
@@ -67,6 +78,8 @@ describe("OrderBuilder (T66, RF-3/4/5/6/7)", () => {
     vi.mocked(fixTable).mockReset();
     vi.mocked(listTables).mockReset();
     vi.mocked(getMenu).mockReset();
+    vi.mocked(deleteOrder).mockReset();
+    vi.mocked(deleteOrder).mockResolvedValue(undefined);
 
     vi.mocked(getOrder).mockResolvedValue(DRAFT_ORDER);
     vi.mocked(getMenu).mockResolvedValue([
@@ -76,6 +89,29 @@ describe("OrderBuilder (T66, RF-3/4/5/6/7)", () => {
       { number: 1, status: "OCCUPIED", active_order_daily_number: null },
       { number: 2, status: "FREE", active_order_daily_number: null },
     ]);
+  });
+
+  it("discards an empty draft when the mesero leaves the screen (RF-15)", async () => {
+    const { unmount } = render(<OrderBuilder orderId={41} />);
+    await screen.findByRole("button", { name: /enviar pedido/i });
+    unmount();
+    expect(deleteOrder).toHaveBeenCalledWith(41);
+  });
+
+  it("keeps a draft that already has items when leaving the screen", async () => {
+    vi.mocked(getOrder).mockResolvedValue({ ...IN_PROGRESS_ORDER, status: "DRAFT" });
+    const { unmount } = render(<OrderBuilder orderId={41} />);
+    await screen.findByText(/limonada/i, { selector: "span" });
+    unmount();
+    expect(deleteOrder).not.toHaveBeenCalled();
+  });
+
+  it("keeps a sent order when leaving the screen", async () => {
+    vi.mocked(getOrder).mockResolvedValue({ ...DRAFT_ORDER, status: "IN_PROGRESS" });
+    const { unmount } = render(<OrderBuilder orderId={41} />);
+    await screen.findByText(/en preparación/i);
+    unmount();
+    expect(deleteOrder).not.toHaveBeenCalled();
   });
 
   it("shows the order and lets the mesero send it", async () => {

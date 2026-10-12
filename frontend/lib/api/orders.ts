@@ -48,6 +48,15 @@ export type Order = {
   active_payment: ActivePayment | null;
   daily_number: number | null;
   sent_at: string | null;
+  created_at: string;
+  draft_reminder: boolean;
+};
+
+/** RF-15: an occupied table with the order holding it (admin-only). */
+export type OccupiedTable = {
+  number: number;
+  order: Order | null;
+  is_stale: boolean;
 };
 
 export function listTables(): Promise<Table[]> {
@@ -59,6 +68,10 @@ export function resizeTables(numero: number): Promise<Table[]> {
     method: "PATCH",
     body: JSON.stringify({ numero }),
   });
+}
+
+export function listOccupiedTables(): Promise<OccupiedTable[]> {
+  return requestJson<OccupiedTable[]>("/api/mesas/ocupadas");
 }
 
 export function releaseTable(tableNumber: number): Promise<Table> {
@@ -74,8 +87,9 @@ export function createOrder(tableNumber: number): Promise<Order> {
   });
 }
 
-export function listMyOrders(): Promise<Order[]> {
-  return requestJson<Order[]>("/api/pedidos/mios");
+export function listMyOrders(fecha?: string): Promise<Order[]> {
+  const query = fecha ? `?fecha=${encodeURIComponent(fecha)}` : "";
+  return requestJson<Order[]>(`/api/pedidos/mios${query}`);
 }
 
 export function listIncomingOrders(): Promise<Order[]> {
@@ -175,6 +189,13 @@ export function voidOrder(orderId: number, reason: string): Promise<Order> {
   return requestJson<Order>(`/api/pedidos/${orderId}/anular`, {
     method: "POST",
     body: JSON.stringify({ reason }),
+  });
+}
+
+/** RF-15: admin-only one-click discard of a draft (traced as a void). */
+export function discardDraft(orderId: number): Promise<Order> {
+  return requestJson<Order>(`/api/pedidos/${orderId}/eliminar-borrador`, {
+    method: "POST",
   });
 }
 

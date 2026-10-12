@@ -7,7 +7,7 @@ import {
   type Order,
   type ApiErrorBody,
 } from "@/lib/api/orders";
-import { formatPrice } from "@/lib/format";
+import { formatPrice, todayIso } from "@/lib/format";
 import styles from "./ChargedOrdersPanel.module.css";
 
 function formatError(error: unknown): string {
@@ -25,13 +25,6 @@ function formatTime(iso: string): string {
   const date = new Date(iso);
   const pad = (value: number) => value.toString().padStart(2, "0");
   return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
-}
-
-/** Today in the browser's local time, as YYYY-MM-DD for <input type="date">. */
-function todayIso(): string {
-  const now = new Date();
-  const pad = (value: number) => value.toString().padStart(2, "0");
-  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 }
 
 /** Admin's "Cobrados" tab (005; reprint per 004 RF-12): orders charged

@@ -5,9 +5,11 @@ from apps.orders.views import (
     ChargedOrdersView,
     ChargeOrderView,
     CreateOrderView,
+    DiscardDraftView,
     FixTableView,
     IncomingOrdersView,
     MyOrdersView,
+    OccupiedTablesView,
     OrderDetailView,
     ReleaseTableView,
     RemoveItemView,
@@ -23,6 +25,7 @@ from apps.orders.views import (
 urlpatterns = [
     path("mesas", TableListView.as_view(), name="orders-tables"),
     path("mesas/numero", ResizeTablesView.as_view(), name="orders-resize-tables"),
+    path("mesas/ocupadas", OccupiedTablesView.as_view(), name="orders-occupied-tables"),
     path(
         "mesas/<int:numero>/liberar",
         ReleaseTableView.as_view(),
@@ -58,4 +61,9 @@ urlpatterns = [
     ),
     path("pedidos/<int:pk>/cobrar", ChargeOrderView.as_view(), name="orders-charge"),
     path("pedidos/<int:pk>/anular", VoidOrderView.as_view(), name="orders-void"),
+    path(
+        "pedidos/<int:pk>/eliminar-borrador",
+        DiscardDraftView.as_view(),
+        name="orders-discard-draft",
+    ),
 ]

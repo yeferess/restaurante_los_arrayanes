@@ -1,0 +1,97 @@
+.section {
+  margin-top: 2rem;
+  max-width: 40rem;
+}
+
+.heading {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--ink);
+  margin-bottom: 0.85rem;
+}
+
+.staleNotice {
+  background: var(--status-danger-soft);
+  color: var(--status-danger);
+  border-radius: 0.6rem;
+  padding: 0.65rem 0.85rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  margin-bottom: 0.85rem;
+}
+
+.message {
+  background: var(--accent-soft);
+  color: var(--accent-pressed);
+  border-radius: 0.6rem;
+  padding: 0.65rem 0.85rem;
+  font-size: 0.9rem;
+  margin-bottom: 0.85rem;
+}
+
+.empty {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0.9rem;
+  padding: 0.85rem 1rem;
+}
+
+.cardStale {
+  border-color: var(--status-danger);
+}
+
+.cardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.table {
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.badge {
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  background: var(--status-occupied-soft);
+  color: var(--status-occupied);
+}
+
+.meta {
+  margin: 0.4rem 0 0.7rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}
+
+.voidButton {
+  min-height: 2.4rem;
+  padding: 0 0.9rem;
+  border: 1px solid var(--status-danger);
+  border-radius: 0.6rem;
+  background: var(--surface);
+  color: var(--status-danger);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.voidButton:hover {
+  background: var(--status-danger-soft);
+}

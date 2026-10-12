@@ -3,6 +3,7 @@ from decimal import Decimal
 from rest_framework import serializers
 
 from apps.kitchen_printing.models import PrintJob
+from apps.orders import services
 from apps.orders.models import Order, OrderItem, Table
 from apps.payments.models import Payment
 
@@ -56,6 +57,7 @@ class OrderSerializer(serializers.ModelSerializer):
     has_pending_print = serializers.SerializerMethodField()
     active_payment = serializers.SerializerMethodField()
     waiter_username = serializers.CharField(source="waiter.username", read_only=True)
+    draft_reminder = serializers.SerializerMethodField()
 
     class Meta:
         model = Order
@@ -72,6 +74,8 @@ class OrderSerializer(serializers.ModelSerializer):
             "active_payment",
             "daily_number",
             "sent_at",
+            "created_at",
+            "draft_reminder",
         ]
 
     def get_total(self, obj):
@@ -79,6 +83,9 @@ class OrderSerializer(serializers.ModelSerializer):
             (item.unit_price * item.quantity for item in obj.items.all() if not item.is_voided),
             Decimal("0.00"),
         )
+
+    def get_draft_reminder(self, obj):
+        return services.needs_draft_reminder(obj)
 
     def get_has_pending_print(self, obj):
         return obj.print_jobs.filter(status=PrintJob.Status.PENDING).exists()
@@ -93,3 +100,19 @@ class OrderSerializer(serializers.ModelSerializer):
             "charged_by": payment.charged_by.username,
             "charged_at": payment.charged_at.isoformat(),
         }
+
+
+class OccupiedTableSerializer(serializers.Serializer):
+    """RF-15: an occupied table with the order holding it (admin view)."""
+
+    number = serializers.IntegerField()
+    order = serializers.SerializerMethodField()
+    is_stale = serializers.SerializerMethodField()
+
+    def get_order(self, obj):
+        order = services.active_order_for_table(obj.number)
+        return OrderSerializer(order).data if order else None
+
+    def get_is_stale(self, obj):
+        order = services.active_order_for_table(obj.number)
+        return services.is_stale_occupation(order) if order else False

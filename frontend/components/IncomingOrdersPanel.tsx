@@ -1,8 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import {
   listIncomingOrders,
+  listOccupiedTables,
   reprintOrder,
   voidOrder,
   type Order,
@@ -44,6 +46,8 @@ export function IncomingOrdersPanel() {
   const [message, setMessage] = useState<string | null>(null);
   const [chargingOrder, setChargingOrder] = useState<Order | null>(null);
 
+  const [staleTables, setStaleTables] = useState(0);
+
   const refresh = useCallback(async () => {
     try {
       const data = await listIncomingOrders();
@@ -51,6 +55,13 @@ export function IncomingOrdersPanel() {
       setMessage(null);
     } catch (error) {
       setMessage(formatError(error));
+    }
+    // RF-15: the notice is secondary — a failure here never hides the list.
+    try {
+      const occupied = await listOccupiedTables();
+      setStaleTables(occupied.filter((table) => table.is_stale).length);
+    } catch {
+      setStaleTables(0);
     }
   }, []);
 
@@ -95,6 +106,16 @@ export function IncomingOrdersPanel() {
           Actualizar
         </button>
       </div>
+      {staleTables > 0 && (
+        <p className={styles.staleNotice} role="alert">
+          {staleTables === 1
+            ? "Hay 1 mesa ocupada desde hace más de 3 horas."
+            : `Hay ${staleTables} mesas ocupadas desde hace más de 3 horas.`}{" "}
+          <Link href="/admin/mesas" className={styles.staleLink}>
+            Revisar en Mesas
+          </Link>
+        </p>
+      )}
       {message && (
         <p className={styles.message} role="status">
           {message}
@@ -117,6 +138,7 @@ export function IncomingOrdersPanel() {
                 </div>
                 <span className={styles.table}>Mesa {order.table_number}</span>
               </div>
+              <p className={styles.waiter}>Mesero: {order.waiter_username}</p>
               <div className={styles.total}>${formatPrice(order.total)}</div>
               {order.has_pending_print && (
                 <span className={styles.printPendingBadge}>No impreso en cocina</span>

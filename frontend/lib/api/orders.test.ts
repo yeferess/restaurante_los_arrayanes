@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   listTables,
+  listOccupiedTables,
+  discardDraft,
   resizeTables,
   releaseTable,
   createOrder,
@@ -44,6 +46,25 @@ describe("lib/api/orders (T62, RF-1 a RF-11)", () => {
       new Response(JSON.stringify(body), { status })
     );
   }
+
+  it("listOccupiedTables gets /api/mesas/ocupadas (RF-15)", async () => {
+    mockOk([{ number: 2, order: null, is_stale: false }]);
+    const result = await listOccupiedTables();
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringContaining("/api/mesas/ocupadas"),
+      expect.objectContaining({ credentials: "include" })
+    );
+    expect(result).toEqual([{ number: 2, order: null, is_stale: false }]);
+  });
+
+  it("discardDraft posts /api/pedidos/{id}/eliminar-borrador (RF-15)", async () => {
+    mockOk({ id: 15, status: "VOIDED" });
+    await discardDraft(15);
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringContaining("/api/pedidos/15/eliminar-borrador"),
+      expect.objectContaining({ method: "POST" })
+    );
+  });
 
   it("listTables gets /api/mesas", async () => {
     mockOk([{ number: 1, status: "FREE" }]);
@@ -130,6 +151,15 @@ describe("lib/api/orders (T62, RF-1 a RF-11)", () => {
     await expect(deleteOrder(41)).rejects.toEqual({
       detail: "Solo se puede eliminar un pedido en borrador.",
     });
+  });
+
+  it("listMyOrders passes the chosen date as ?fecha= (RF-16)", async () => {
+    mockOk([]);
+    await listMyOrders("2026-10-11");
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringContaining("/api/pedidos/mios?fecha=2026-10-11"),
+      expect.objectContaining({ credentials: "include" })
+    );
   });
 
   it("listMyOrders gets /api/pedidos/mios", async () => {

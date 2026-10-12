@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MyOrdersList } from "./MyOrdersList";
 
@@ -36,6 +36,8 @@ const DRAFT_ORDER = {
   active_payment: null,
   daily_number: null,
   sent_at: null,
+  created_at: "2026-03-10T18:55:00Z",
+  draft_reminder: false,
 };
 
 const CHARGED_ORDER = {
@@ -51,6 +53,8 @@ const CHARGED_ORDER = {
   active_payment: null,
   daily_number: 5,
   sent_at: "2026-03-10T20:15:00Z",
+  created_at: "2026-03-10T18:55:00Z",
+  draft_reminder: false,
 };
 
 const UNPRINTED_ORDER = {
@@ -66,6 +70,8 @@ const UNPRINTED_ORDER = {
   active_payment: null,
   daily_number: 12,
   sent_at: "2026-03-10T21:00:00Z",
+  created_at: "2026-03-10T18:55:00Z",
+  draft_reminder: false,
 };
 
 const DELIVERED_ORDER = {
@@ -81,6 +87,8 @@ const DELIVERED_ORDER = {
   active_payment: null,
   daily_number: 13,
   sent_at: "2026-03-10T21:10:00Z",
+  created_at: "2026-03-10T18:55:00Z",
+  draft_reminder: false,
 };
 
 const VOIDED_DELIVERED_ORDER = {
@@ -96,6 +104,8 @@ const VOIDED_DELIVERED_ORDER = {
   active_payment: null,
   daily_number: 14,
   sent_at: "2026-03-10T21:20:00Z",
+  created_at: "2026-03-10T18:55:00Z",
+  draft_reminder: false,
 };
 
 describe("MyOrdersList (T67, RF-8/10)", () => {
@@ -112,6 +122,35 @@ describe("MyOrdersList (T67, RF-8/10)", () => {
       { number: 2, status: "PAID", active_order_daily_number: null },
       { number: 3, status: "OCCUPIED", active_order_daily_number: null },
     ]);
+  });
+
+  it("loads today's orders by default (RF-16)", async () => {
+    render(<MyOrdersList />);
+    await screen.findByText(/mesa 1/i);
+    expect(listMyOrders).toHaveBeenCalledWith(expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/));
+  });
+
+  it("reloads with the chosen date and says when it has no orders", async () => {
+    render(<MyOrdersList />);
+    await screen.findByText(/mesa 1/i);
+    vi.mocked(listMyOrders).mockResolvedValue([]);
+
+    fireEvent.change(screen.getByLabelText(/fecha/i), { target: { value: "2026-10-11" } });
+
+    expect(await screen.findByText(/no hay pedidos para esta fecha/i)).toBeInTheDocument();
+    expect(listMyOrders).toHaveBeenLastCalledWith("2026-10-11");
+  });
+
+  it("reminds the waiter about a draft left unsent (RF-15)", async () => {
+    vi.mocked(listMyOrders).mockResolvedValue([{ ...DRAFT_ORDER, draft_reminder: true }]);
+    render(<MyOrdersList />);
+    expect(await screen.findByText(/borrador sin enviar/i)).toBeInTheDocument();
+  });
+
+  it("shows no reminder on a recent draft", async () => {
+    render(<MyOrdersList />);
+    await screen.findByText(/mesa 1/i);
+    expect(screen.queryByText(/borrador sin enviar/i)).not.toBeInTheDocument();
   });
 
   it("lists the waiter's own orders with table and status", async () => {

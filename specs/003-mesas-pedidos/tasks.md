@@ -563,3 +563,66 @@ condición verificable de "Hecho cuando".
   endpoint, servicio ni test de `apps.orders`/`apps.payments`/
   `apps.kitchen_printing` cambia — la suite de backend sigue en
   651/651.
+
+---
+
+## Fase 9 — Mesas retenidas por pedidos olvidados (RF-15)
+
+- [x] **T82 — Backend: limpieza de borradores vacíos y recordatorio**
+  RF: RF-15
+  Hecho cuando: `discard_stale_empty_drafts()` elimina los borradores sin
+  ítems con más de 10 minutos y libera su mesa (llamado desde
+  `create_order`, `GET /api/mesas`, `GET /api/pedidos/mios` y
+  `GET /api/mesas/ocupadas`); nunca toca un borrador con ítems ni un
+  pedido enviado; `OrderSerializer` expone `created_at` y
+  `draft_reminder`. Tests en `apps/orders/tests/test_stale_orders.py`.
+
+- [x] **T83 — Backend: `GET /api/mesas/ocupadas`**
+  RF: RF-15
+  Hecho cuando: el endpoint (solo admin) devuelve cada mesa ocupada con
+  su pedido activo e `is_stale` (más de 3 horas); 401 sin sesión, 403
+  mesero; el admin puede anular un borrador con el endpoint de RF-11.
+
+- [x] **T84 — Frontend: borrar el borrador vacío al salir y aviso al mesero**
+  RF: RF-15
+  Hecho cuando: `OrderBuilder` elimina al desmontarse un borrador sin
+  ítems (nunca uno con ítems ni uno enviado); `MyOrdersList` muestra
+  "Borrador sin enviar" cuando `draft_reminder` es verdadero.
+
+- [x] **T85 — Frontend: mesas ocupadas en el panel del admin**
+  RF: RF-15
+  Hecho cuando: `/admin/mesas` muestra `OccupiedTablesPanel` (mesa,
+  estado, mesero, desde cuándo, ítems, total, "Anular pedido" con
+  motivo, borde rojo y aviso para las de más de 3 horas);
+  `IncomingOrdersPanel` muestra "Hay N mesas ocupadas desde hace más de
+  3 horas" con enlace a Mesas.
+
+---
+
+## Fase 10 — Eliminar borrador (admin), mesero en Entrantes y "Mis pedidos" por día (RF-9, RF-15, RF-16)
+
+- [x] **T86 — "Eliminar borrador" del admin y borradores de días anteriores**
+  RF: RF-11, RF-12, RF-15
+  Hecho cuando: `POST /api/pedidos/{id}/eliminar-borrador` (solo admin,
+  `services.discard_draft_by_admin`) anula el borrador con el motivo
+  fijo "Borrador eliminado por el admin", registra quién y cuándo, y
+  libera la mesa (409 si ya se envió); `OccupiedTablesPanel` muestra
+  "Eliminar borrador" con confirmación en los borradores y "Anular
+  pedido" con motivo en los enviados; `discard_stale_drafts()` también
+  elimina todo borrador de un día anterior, tenga o no ítems. Tests en
+  `test_stale_orders.py`, `OccupiedTablesPanel.test.tsx` y
+  `lib/api/orders.test.ts`.
+
+- [x] **T87 — Mesero en el panel de pedidos entrantes**
+  RF: RF-9
+  Hecho cuando: cada tarjeta de `IncomingOrdersPanel` muestra
+  "Mesero: {usuario}".
+
+- [x] **T88 — "Mis pedidos" por día**
+  RF: RF-16
+  Hecho cuando: `GET /api/pedidos/mios?fecha=` devuelve los del día
+  (por defecto hoy, más los pendientes de días anteriores) y 400 con
+  fecha inválida; `MyOrdersList` tiene selector de fecha (hoy por
+  defecto, sin fechas futuras) y mensaje vacío. Tests en
+  `test_views_my_orders.py`, `MyOrdersList.test.tsx` y
+  `lib/api/orders.test.ts`.

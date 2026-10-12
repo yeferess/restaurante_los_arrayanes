@@ -8,3 +8,10 @@ export function formatPrice(value: string | number): string {
     maximumFractionDigits: 2,
   }).format(numeric);
 }
+
+/** Today in the browser's local time, as YYYY-MM-DD for <input type="date">. */
+export function todayIso(): string {
+  const now = new Date();
+  const pad = (value: number) => value.toString().padStart(2, "0");
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+}

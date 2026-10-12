@@ -39,6 +39,8 @@ const ORDER = {
   active_payment: null,
   daily_number: 7,
   sent_at: "2026-03-10T20:15:00Z",
+  created_at: "2026-03-10T18:55:00Z",
+  draft_reminder: false,
 };
 
 const ACCOUNTS = [

@@ -58,6 +58,8 @@ describe("TableGrid (T65, RF-1/2/13)", () => {
       active_payment: null,
       daily_number: null,
       sent_at: null,
+      created_at: "2026-03-10T18:55:00Z",
+      draft_reminder: false,
     });
     const user = userEvent.setup();
     render(<TableGrid />);

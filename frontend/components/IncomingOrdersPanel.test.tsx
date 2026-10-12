@@ -8,6 +8,7 @@ vi.mock("@/lib/api/orders", () => ({
   chargeOrder: vi.fn(),
   voidOrder: vi.fn(),
   reprintOrder: vi.fn(),
+  listOccupiedTables: vi.fn(),
 }));
 vi.mock("@/lib/api/ordersSocket", () => ({
   subscribeToOrderUpdates: vi.fn(),
@@ -24,7 +25,13 @@ vi.mock("./ChargeOrderModal", () => ({
   ),
 }));
 
-import { listIncomingOrders, chargeOrder, voidOrder, reprintOrder } from "@/lib/api/orders";
+import {
+  listIncomingOrders,
+  listOccupiedTables,
+  chargeOrder,
+  voidOrder,
+  reprintOrder,
+} from "@/lib/api/orders";
 import { subscribeToOrderUpdates } from "@/lib/api/ordersSocket";
 
 const ORDER_1 = {
@@ -40,6 +47,8 @@ const ORDER_1 = {
   active_payment: null,
   daily_number: 9,
   sent_at: "2026-03-10T19:00:00Z",
+  created_at: "2026-03-10T18:55:00Z",
+  draft_reminder: false,
 };
 
 describe("IncomingOrdersPanel (T68, soporte RF-9/11)", () => {
@@ -52,7 +61,38 @@ describe("IncomingOrdersPanel (T68, soporte RF-9/11)", () => {
     vi.mocked(subscribeToOrderUpdates).mockReset();
     closeMock.mockReset();
     vi.mocked(listIncomingOrders).mockResolvedValue([ORDER_1]);
+    vi.mocked(listOccupiedTables).mockReset();
+    vi.mocked(listOccupiedTables).mockResolvedValue([]);
     vi.mocked(subscribeToOrderUpdates).mockReturnValue({ close: closeMock });
+  });
+
+  it("warns about tables occupied for too long (RF-15)", async () => {
+    vi.mocked(listOccupiedTables).mockResolvedValue([
+      { number: 1, order: ORDER_1, is_stale: true },
+      { number: 2, order: null, is_stale: false },
+    ]);
+    render(<IncomingOrdersPanel />);
+    expect(
+      await screen.findByText(/hay 1 mesa ocupada desde hace más de 3 horas/i)
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /revisar en mesas/i })).toHaveAttribute(
+      "href",
+      "/admin/mesas"
+    );
+  });
+
+  it("shows no stale-table warning when every occupation is recent", async () => {
+    vi.mocked(listOccupiedTables).mockResolvedValue([
+      { number: 1, order: ORDER_1, is_stale: false },
+    ]);
+    render(<IncomingOrdersPanel />);
+    await screen.findByText(/mesa 1/i);
+    expect(screen.queryByText(/más de 3 horas/i)).not.toBeInTheDocument();
+  });
+
+  it("shows the waiter who sent each order", async () => {
+    render(<IncomingOrdersPanel />);
+    expect(await screen.findByText("Mesero: mesero1")).toBeInTheDocument();
   });
 
   it("loads and displays incoming orders on mount", async () => {

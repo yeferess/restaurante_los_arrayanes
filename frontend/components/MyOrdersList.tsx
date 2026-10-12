@@ -13,7 +13,7 @@ import {
   type Order,
   type ApiErrorBody,
 } from "@/lib/api/orders";
-import { formatPrice } from "@/lib/format";
+import { formatPrice, todayIso } from "@/lib/format";
 import styles from "./MyOrdersList.module.css";
 
 const STATUS_LABEL: Record<Order["status"], string> = {
@@ -65,14 +65,17 @@ function formatSentAt(sentAt: string | null): string | null {
 }
 
 /** Mesero's own-orders screen (T67 — RF-8, RF-10): quick "Entregado"
- * toggle and "Liberar mesa" once the order was charged. */
+ * toggle and "Liberar mesa" once the order was charged. Shows one day
+ * at a time (RF-16): today by default, plus whatever is still pending
+ * from earlier days, as decided by the backend. */
 export function MyOrdersList() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [paidTables, setPaidTables] = useState<Set<number>>(new Set());
   const [message, setMessage] = useState<string | null>(null);
+  const [fecha, setFecha] = useState<string>(todayIso);
 
   function refresh() {
-    return Promise.all([listMyOrders(), listTables()])
+    return Promise.all([listMyOrders(fecha), listTables()])
       .then(([ordersData, tablesData]) => {
         setOrders(ordersData);
         setPaidTables(
@@ -88,7 +91,8 @@ export function MyOrdersList() {
 
   useEffect(() => {
     refresh();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fecha]);
 
   async function handleToggleDelivered(order: Order) {
     setMessage(null);
@@ -149,11 +153,26 @@ export function MyOrdersList() {
 
   return (
     <section className={styles.section}>
-      <h1 className={styles.heading}>Mis pedidos</h1>
+      <div className={styles.headerRow}>
+        <h1 className={styles.heading}>Mis pedidos</h1>
+        <label className={styles.dateLabel}>
+          Fecha
+          <input
+            type="date"
+            className={styles.dateInput}
+            value={fecha}
+            max={todayIso()}
+            onChange={(event) => event.target.value && setFecha(event.target.value)}
+          />
+        </label>
+      </div>
       {message && (
         <p className={styles.message} role="status">
           {message}
         </p>
+      )}
+      {orders.length === 0 && (
+        <p className={styles.empty}>No hay pedidos para esta fecha.</p>
       )}
       <ul className={styles.list}>
         {orders.map((order) => (
@@ -185,6 +204,11 @@ export function MyOrdersList() {
                 </span>
               )}
             </div>
+            {order.draft_reminder && (
+              <p className={styles.draftReminder} role="note">
+                Borrador sin enviar: envíalo o elimínalo para liberar la mesa.
+              </p>
+            )}
             <div className={styles.actions}>
               <button
                 type="button"

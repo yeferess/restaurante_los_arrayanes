@@ -51,6 +51,8 @@ const CHARGED_ORDER = {
   },
   daily_number: 8,
   sent_at: "2026-10-11T15:23:09Z",
+  created_at: "2026-03-10T18:55:00Z",
+  draft_reminder: false,
 };
 
 describe("ChargedOrdersPanel (005, 004 RF-12)", () => {
