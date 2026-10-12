@@ -18,6 +18,7 @@ import {
   fixTable,
   setDelivered,
   chargeOrder,
+  setAdminNote,
   voidOrder,
   retryPrint,
 } from "./orders";
@@ -297,12 +298,35 @@ describe("lib/api/orders (T62, RF-1 a RF-11)", () => {
     );
   });
 
+  it("chargeOrder sends the optional discount and its reason (005 RF-10)", async () => {
+    mockOk({ id: 7, status: "CHARGED" });
+    await chargeOrder(7, 3, { amount: 5000, reason: "demora" });
+    const [, init] = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(JSON.parse(init.body)).toEqual({
+      account_id: 3,
+      discount: 5000,
+      discount_reason: "demora",
+    });
+  });
+
+  it("setAdminNote patches /api/pedidos/{id}/nota-admin (003 RF-17)", async () => {
+    mockOk({ id: 7, admin_note: "cumpleanos" });
+    await setAdminNote(7, "cumpleanos");
+    const [url, init] = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(url).toContain("/api/pedidos/7/nota-admin");
+    expect(init.method).toBe("PATCH");
+    expect(JSON.parse(init.body)).toEqual({ note: "cumpleanos" });
+  });
+
   it("chargeOrder posts account_id to /api/pedidos/{id}/cobrar (005-cobro) and propagates a 409", async () => {
     mockOk({
       id: 7,
       status: "CHARGED",
       active_payment: {
         account_name: "Efectivo",
+        subtotal: "9.00",
+        discount: "0.00",
+        discount_reason: "",
         amount: "9.00",
         charged_by: "admin1",
         charged_at: "2026-03-10T20:15:00Z",

@@ -12,6 +12,7 @@ import {
 } from "@/lib/api/orders";
 import { subscribeToOrderUpdates } from "@/lib/api/ordersSocket";
 import { formatPrice } from "@/lib/format";
+import { AdminNoteEditor } from "./AdminNoteEditor";
 import { ChargeOrderModal } from "./ChargeOrderModal";
 import styles from "./IncomingOrdersPanel.module.css";
 
@@ -166,6 +167,7 @@ export function IncomingOrdersPanel() {
                   Reimprimir
                 </button>
               </div>
+              <AdminNoteEditor order={order} />
             </li>
           ))}
         </ul>

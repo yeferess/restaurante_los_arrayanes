@@ -126,6 +126,12 @@ arman los pedidos), y respeta las reglas 4 y 5 de
   revalida la disponibilidad del producto al agregarlo, sin confiar
   únicamente en el estado del menú ya cargado en el frontend.
 
+- El sistema deberá mostrar, en cada línea de un pedido, su precio
+  unitario y su total (cantidad × precio unitario), y al final de la
+  lista el total del pedido. Ambos totales los calcula el backend
+  (`line_total`, `total`); ninguna pantalla hace la cuenta por su
+  cuenta (constitución, regla 3).
+
 ### RF-4 — Notas por ítem
 
 - Cuando un mesero agrega una nota a un ítem del pedido (de catálogo o
@@ -386,6 +392,18 @@ arman los pedidos), y respeta las reglas 4 y 5 de
   estado.
 - Si la fecha no tiene el formato AAAA-MM-DD, el sistema deberá rechazar
   la consulta.
+
+### RF-17 — Nota del pedido (solo admin)
+
+- El sistema deberá permitir al admin escribir y editar una nota
+  general del pedido (máximo 300 caracteres), en cualquier estado del
+  pedido, desde los pedidos entrantes y desde los pedidos cobrados; al
+  cobrar la ve en modo lectura.
+- El sistema nunca deberá enviarle esa nota a un mesero (no aparece en
+  ninguna respuesta de la API para una cuenta de mesero), ni imprimirla
+  en el ticket de cocina ni en el comprobante del cliente
+  ([005-cobro RF-11](../005-cobro/spec.md)).
+- Si la nota supera los 300 caracteres, el sistema deberá rechazarla.
 
 ## Requisitos no funcionales
 

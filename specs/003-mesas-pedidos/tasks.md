@@ -634,3 +634,22 @@ condición verificable de "Hecho cuando".
   (`DELETE /api/pedidos/{id}/items/{item_id}`, ya existente) y refresca
   el pedido; una vez enviado, el ítem solo ofrece "Anular" con motivo
   (RF-6). Tests en `OrderBuilder.test.tsx`.
+
+---
+
+## Fase 11 — Total por línea y nota del admin (RF-3, RF-17)
+
+- [x] **T90 — Total por línea y total del pedido**
+  RF: RF-3
+  Hecho cuando: `OrderItemSerializer` expone `line_total`;
+  `OrderBuilder` muestra "c/u" y el total de cada línea, y una fila
+  "Total" al final; `ChargeOrderModal` y `ChargedOrdersPanel` usan
+  `line_total` en vez de multiplicar en el frontend.
+
+- [x] **T91 — Nota del pedido solo para el admin**
+  RF: RF-17
+  Hecho cuando: `Order.admin_note` (migración `0006`),
+  `PATCH /api/pedidos/{id}/nota-admin` (solo admin; 400 si pasa de 300
+  caracteres, 403 mesero, 404); `AdminOrderSerializer` la incluye solo
+  en las vistas de admin; `AdminNoteEditor` en Entrantes y Cobrados.
+  Tests en `test_admin_note_line_total.py` y `AdminNoteEditor.test.tsx`.

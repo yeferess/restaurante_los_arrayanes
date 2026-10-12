@@ -32,6 +32,7 @@ const DRAFT_ORDER = {
       line_type: "ORIGINAL" as const,
       is_voided: false,
       void_reason: null,
+      line_total: "50000.00",
     },
   ],
   total: "50000.00",

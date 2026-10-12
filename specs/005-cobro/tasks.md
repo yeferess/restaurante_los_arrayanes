@@ -277,3 +277,24 @@ una condición verificable de "Hecho cuando".
   y a meseros (403); `ChargedOrdersPanel` en `/admin/pedidos/cobrados`
   con selector de fecha, detalle y botón "Reimprimir". Tests en
   `test_charged_orders.py` y `ChargedOrdersPanel.test.tsx`.
+
+- [x] **T34 — Descuento en pesos al cobrar**
+  RF: RF-3, RF-10
+  Hecho cuando: `Payment` guarda `subtotal`, `discount` y
+  `discount_reason` (migración `0004`, que rellena `subtotal = amount`);
+  `compute_charge` valida el descuento; `POST .../cobrar` acepta
+  `discount`/`discount_reason` (400 si es inválido);
+  `POST .../cobro/previsualizar` devuelve el total a pagar;
+  `ChargeOrderModal` muestra la vista previa y bloquea el cobro con un
+  descuento inválido; Cobrados muestra subtotal y descuento. Tests en
+  `test_discount_receipt.py`, `test_services_money.py` y
+  `ChargeOrderModal.test.tsx`.
+
+- [x] **T35 — Comprobante impreso**
+  RF: RF-11
+  Hecho cuando: `payments/receipt.py` arma el texto; `print_receipt`
+  imprime bajo el lock de cocina sin crear `PrintJob`;
+  `POST /api/pedidos/{id}/comprobante` (solo admin; 409 si no está
+  cobrado); botón "Imprimir comprobante" en la confirmación del cobro y
+  en Cobrados. Tests en `test_discount_receipt.py`,
+  `ChargeOrderModal.test.tsx` y `ChargedOrdersPanel.test.tsx`.

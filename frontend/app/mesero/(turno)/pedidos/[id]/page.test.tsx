@@ -21,6 +21,8 @@ vi.mock("@/lib/api/orders", () => ({
   sendOrder: vi.fn(),
   fixTable: vi.fn(),
   listTables: vi.fn().mockResolvedValue([]),
+  removeItem: vi.fn(),
+  deleteOrder: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("@/lib/api/menu", () => ({

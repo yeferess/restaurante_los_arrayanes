@@ -60,6 +60,25 @@
   font-family: var(--font-geist-mono), monospace;
 }
 
+.payRow {
+  margin-top: -0.4rem;
+  color: var(--accent-pressed);
+}
+
+.adminNote {
+  font-size: 0.85rem;
+  color: var(--muted);
+  font-style: italic;
+  margin-bottom: 1rem;
+  overflow-wrap: anywhere;
+}
+
+.discountSummary {
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin: -0.6rem 0 1rem;
+}
+
 .confirmationText {
   font-size: 0.95rem;
   color: var(--ink);
@@ -99,6 +118,7 @@
 
 .actions {
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
   gap: 0.6rem;
 }

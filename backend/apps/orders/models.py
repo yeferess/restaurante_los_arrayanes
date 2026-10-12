@@ -47,6 +47,9 @@ class Order(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     daily_number = models.PositiveIntegerField(null=True, blank=True)
     sent_at = models.DateTimeField(null=True, blank=True)
+    # RF-17: free-text note only the admin writes and sees — never sent
+    # to waiters, the kitchen ticket or the customer receipt.
+    admin_note = models.CharField(max_length=300, blank=True)
 
     def __str__(self):
         return f"Order {self.id} (table {self.table_number})"

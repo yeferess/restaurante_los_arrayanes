@@ -28,6 +28,24 @@ export function deleteAccount(accountId: number): Promise<void> {
   });
 }
 
+/** 005 RF-10: what charging with this peso discount would produce. */
+export type ChargePreview = { subtotal: string; discount: string; total: string };
+
+export function previewCharge(orderId: number, discount: number): Promise<ChargePreview> {
+  return requestJson<ChargePreview>(`/api/pedidos/${orderId}/cobro/previsualizar`, {
+    method: "POST",
+    body: JSON.stringify({ discount }),
+  });
+}
+
+/** 005 RF-11: print the customer receipt of a charged order. */
+export function printReceipt(orderId: number): Promise<{ print_warning: string | null }> {
+  return requestJson<{ print_warning: string | null }>(
+    `/api/pedidos/${orderId}/comprobante`,
+    { method: "POST" }
+  );
+}
+
 export function voidCharge(orderId: number, reason: string): Promise<Order> {
   return requestJson<Order>(`/api/pedidos/${orderId}/cobro/anular`, {
     method: "POST",

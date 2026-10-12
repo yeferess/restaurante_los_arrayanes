@@ -107,8 +107,10 @@ nunca se rompa ese invariante (ver RF-6).
   opción de la lista del catálogo (RF-2) — no deberá permitir confirmar
   un cobro sin ninguna opción elegida.
 - El sistema deberá guardar, de forma permanente e inmutable, al
-  confirmar un cobro: el pedido, la opción de pago elegida, el monto
-  exacto cobrado (ver RF-4), el admin que lo procesó, y la fecha y hora.
+  confirmar un cobro: el pedido, la opción de pago elegida, el subtotal
+  de los ítems (ver RF-4), el descuento aplicado y su motivo (RF-10), el
+  monto exacto cobrado (subtotal − descuento), el admin que lo procesó,
+  y la fecha y hora.
 - El monto guardado deberá quedar fijo en ese instante (no deberá
   recalcularse después a partir de cambios posteriores en el pedido).
 - La venta deberá seguir atribuida siempre al mesero dueño del pedido —
@@ -122,6 +124,8 @@ nunca se rompa ese invariante (ver RF-6).
   total del pedido ya calculado — la suma de sus ítems activos
   (pedido original más adiciones, sin los ítems anulados), igual
   cálculo que el total que 003 ya expone en el detalle de un pedido.
+- Cada ítem del consolidado deberá mostrar su total de línea, calculado
+  por el backend ([003 RF-3](../003-mesas-pedidos/spec.md)).
 - El sistema no deberá requerir un desglose adicional agrupado por
   "pedido original / adiciones / anulado" — el total consolidado y el
   listado de ítems ya existentes son suficientes.
@@ -204,6 +208,48 @@ nunca se rompa ese invariante (ver RF-6).
 - Endpoint: `GET /api/pedidos/cobrados?fecha=AAAA-MM-DD`, exclusivo del
   admin; toma el cobro activo del pedido y su fecha en hora local.
 
+### RF-10 — Descuento al cobrar
+
+*(Agregado 2026-10-12.)*
+
+- Al cobrar, el sistema deberá permitir al admin aplicar un descuento
+  opcional, solo como monto en pesos, con un motivo opcional (máximo 200
+  caracteres).
+- El sistema deberá rechazar un descuento negativo, no numérico o mayor
+  que el subtotal del pedido; un descuento igual al subtotal (total 0)
+  está permitido.
+- Antes de confirmar, el sistema deberá mostrar el "Total a pagar"
+  calculado por el backend (`POST /api/pedidos/{id}/cobro/previsualizar`,
+  que no guarda nada), y no deberá permitir cobrar mientras el descuento
+  sea inválido.
+- El descuento queda dentro del registro inmutable del cobro (RF-3):
+  quién lo aplicó y cuándo son el admin y la fecha del cobro (regla 4).
+  Anular el cobro (RF-6) conserva ese registro tal cual; el cobro
+  siguiente puede llevar otro descuento.
+- El dinero cobrado que suman las estadísticas
+  ([006](../006-estadisticas/spec.md)) es siempre el neto (subtotal −
+  descuento).
+
+### RF-11 — Comprobante impreso para el cliente
+
+*(Agregado 2026-10-12.)*
+
+- El sistema deberá permitir al admin imprimir, cuando el cliente lo
+  pida, un comprobante de un pedido cobrado — desde la confirmación del
+  cobro y desde la pestaña de pedidos cobrados (RF-9).
+- El comprobante sale en la misma impresora de cocina (40 columnas,
+  texto sin tildes) con el encabezado "FINCA DE RECREO LOS ARRAYANES" /
+  "COMPROBANTE", número del día, mesa, fecha y hora del cobro, cada
+  ítem activo con cantidad, precio unitario y total de línea, subtotal y
+  descuento (solo si hubo), total pagado y forma de pago.
+- El comprobante nunca incluye la nota del admin
+  ([003 RF-17](../003-mesas-pedidos/spec.md)) ni las notas de cocina de
+  los platos.
+- Si el pedido no está cobrado, el sistema deberá rechazar la
+  impresión. Si la impresora falla, el sistema avisa con el mismo
+  mensaje de la impresión de cocina, sin guardar nada.
+- Endpoint: `POST /api/pedidos/{id}/comprobante`, exclusivo del admin.
+
 ## Casos límite
 
 - El admin intenta cobrar un pedido que todavía está en "borrador" →
@@ -251,6 +297,11 @@ nunca se rompa ese invariante (ver RF-6).
   mismas reglas de 003.
 - La impresión de tickets de cocina (004-impresion-cocina) — no tiene
   relación con el cobro.
+- La factura electrónica ante la DIAN — el comprobante de RF-11 no es
+  una factura legal; emitirla requiere un proveedor autorizado y
+  conexión a internet (constitución, regla 2).
+- Descuentos por porcentaje o por ítem — RF-10 solo admite un monto en
+  pesos sobre el total del pedido.
 - Los pagos parciales o divididos entre varias opciones de pago en un
   mismo cobro — cada cobro se paga por completo con una sola opción
   del catálogo.

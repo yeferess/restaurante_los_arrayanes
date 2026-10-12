@@ -19,6 +19,7 @@ from apps.orders.models import DailyOrderCounter, Order, OrderAction, OrderItem,
 
 ITEM_NAME_MAX_LENGTH = 100
 NOTE_MAX_LENGTH = 200
+ADMIN_NOTE_MAX_LENGTH = 300
 
 # RF-15: thresholds that keep a forgotten order from holding a table.
 EMPTY_DRAFT_TTL = timedelta(minutes=10)
@@ -399,6 +400,21 @@ def fix_table(order, waiter, new_table_number):
         from_table_number=original_table_number,
         to_table_number=new_table_number,
     )
+    return order
+
+
+def set_admin_note(order, note):
+    """RF-17: the admin's own note on an order, in any status. Never
+    reaches waiters, the kitchen ticket or the customer receipt."""
+    note = (note or "").strip()
+    if len(note) > ADMIN_NOTE_MAX_LENGTH:
+        raise ValidationError(
+            f"La nota no puede superar los {ADMIN_NOTE_MAX_LENGTH} caracteres.",
+            code="invalid",
+        )
+    order.admin_note = note
+    order.save(update_fields=["admin_note"])
+    notify_orders_changed()
     return order
 
 

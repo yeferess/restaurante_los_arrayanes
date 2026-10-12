@@ -4,6 +4,8 @@ import {
   createAccount,
   deleteAccount,
   voidCharge,
+  previewCharge,
+  printReceipt,
 } from "./payments";
 
 describe("lib/api/payments (005-cobro, RF-2, RF-6)", () => {
@@ -29,6 +31,25 @@ describe("lib/api/payments (005-cobro, RF-2, RF-6)", () => {
       new Response(JSON.stringify(body), { status })
     );
   }
+
+  it("previewCharge posts the discount (RF-10)", async () => {
+    mockOk({ subtotal: "55000.00", discount: "5000", total: "50000.00" });
+    const result = await previewCharge(7, 5000);
+    const [url, init] = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(url).toContain("/api/pedidos/7/cobro/previsualizar");
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(init.body)).toEqual({ discount: 5000 });
+    expect(result.total).toBe("50000.00");
+  });
+
+  it("printReceipt posts /api/pedidos/{id}/comprobante (RF-11)", async () => {
+    mockOk({ print_warning: null });
+    const result = await printReceipt(7);
+    const [url, init] = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(url).toContain("/api/pedidos/7/comprobante");
+    expect(init.method).toBe("POST");
+    expect(result.print_warning).toBeNull();
+  });
 
   it("listAccounts gets /api/cuentas-pago", async () => {
     mockOk([{ id: 1, name: "Efectivo", is_fixed: true }]);

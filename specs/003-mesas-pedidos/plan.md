@@ -312,6 +312,7 @@ sesión (heredada del módulo 001). Todas las respuestas de error usan
 | 15 | `/api/pedidos/{id}/anular` | POST | RF-11 | admin | `{motivo}` | 200 | 400 falta motivo; 409 ya cobrado; 403 mesero; 404 |
 | 16 | `/api/mesas/{numero}/liberar` | POST | RF-10 | mesero (cualquiera) | — | 200 | 409 mesa no está pagada; 403 admin; 404 mesa no existe |
 | 17 | `/api/mesas/ocupadas` | GET | RF-15 | admin | — | `[{number, order, is_stale}]` (`order` con el mismo formato del endpoint 6, o `null`) | 401; 403 mesero |
+| 19 | `/api/pedidos/{id}/nota-admin` | PATCH | RF-17 | admin | `{note}` | 200 (pedido con `admin_note`) | 400 nota de más de 300; 403 mesero; 404 |
 | 18 | `/api/pedidos/{id}/eliminar-borrador` | POST | RF-15, RF-11, RF-12 | admin | — | 200 (pedido anulado, mesa libre; `OrderAction ORDER_VOIDED` con motivo fijo `DRAFT_DISCARD_REASON`) | 409 el pedido no está en "borrador"; 403 mesero; 404 |
 
 RF-15: `discard_stale_drafts()` (`services.py`) elimina los
@@ -707,4 +708,5 @@ acción sensible tiene al menos un test).
 | RF-13 | Sección 1 (`permissions.py`, `IsOrderOwner`), Sección 3 (endpoints 4-6, columna Auth), Sección 4 (consumer admin-only) |
 | RF-15 | Sección 3 (endpoints 17-18 y nota de RF-15 debajo de la tabla), Sección 6 |
 | RF-16 | Sección 3 (endpoint 4, `?fecha=`) |
+| RF-17 | Sección 3 (endpoint 19; `AdminOrderSerializer` agrega `admin_note` solo en las respuestas de vistas de admin) |
 | RF-14 | Sección 2 (`Order.daily_number`/`sent_at`, `DailyOrderCounter`), Sección 3 (endpoint 1 `numero_dia_pedido_activo`, endpoints 3-6 y 11 `numero_dia`/`enviado_en`), Sección 4.1 (mecanismo de asignación, pseudocódigo), Decisión técnica 9, Sección 6 |

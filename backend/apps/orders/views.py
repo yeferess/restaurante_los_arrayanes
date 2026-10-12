@@ -12,6 +12,7 @@ from apps.orders import services
 from apps.orders.models import Order, OrderItem, Table
 from apps.orders.permissions import IsAdmin, IsMesero
 from apps.orders.serializers import (
+    AdminOrderSerializer,
     OccupiedTableSerializer,
     OrderItemSerializer,
     OrderSerializer,
@@ -174,7 +175,7 @@ class IncomingOrdersView(APIView):
         orders = Order.objects.filter(status=Order.Status.IN_PROGRESS).order_by(
             "created_at"
         )
-        return Response(OrderSerializer(orders, many=True).data)
+        return Response(AdminOrderSerializer(orders, many=True).data)
 
 
 class ChargedOrdersView(APIView):
@@ -199,7 +200,7 @@ class ChargedOrdersView(APIView):
             .filter(charged_at__date=day)
             .order_by("-charged_at")
         )
-        return Response(OrderSerializer(orders, many=True).data)
+        return Response(AdminOrderSerializer(orders, many=True).data)
 
 
 class OrderDetailView(APIView):
@@ -216,7 +217,8 @@ class OrderDetailView(APIView):
         if not (is_admin or is_owner):
             return Response(status=status.HTTP_403_FORBIDDEN)
 
-        return Response(OrderSerializer(order).data)
+        serializer_class = AdminOrderSerializer if is_admin else OrderSerializer
+        return Response(serializer_class(order).data)
 
     def delete(self, request, pk):
         order, error = _get_own_order_or_error(request, pk)
@@ -334,8 +336,8 @@ class SendOrderView(APIView):
 
 
 class ChargeOrderView(APIView):
-    """POST /api/pedidos/{id}/cobrar (005-cobro, RF-1, RF-3, RF-5).
-    Admin-only."""
+    """POST /api/pedidos/{id}/cobrar (005-cobro, RF-1, RF-3, RF-5, RF-10).
+    Admin-only; `discount` (pesos) and `discount_reason` are optional."""
 
     permission_classes = [IsAdmin]
 
@@ -357,12 +359,23 @@ class ChargeOrderView(APIView):
             )
 
         try:
-            charge_order(order, request.user, account)
+            charge_order(
+                order,
+                request.user,
+                account,
+                discount=request.data.get("discount"),
+                discount_reason=request.data.get("discount_reason", ""),
+            )
         except DjangoValidationError as exc:
             return Response(
-                {"detail": exc.messages}, status=status.HTTP_409_CONFLICT
+                {"detail": exc.messages},
+                status=(
+                    status.HTTP_400_BAD_REQUEST
+                    if exc.code == "invalid"
+                    else status.HTTP_409_CONFLICT
+                ),
             )
-        data = OrderSerializer(order).data
+        data = AdminOrderSerializer(order).data
         return Response(data)
 
 
@@ -389,7 +402,7 @@ class VoidOrderView(APIView):
             return Response(
                 {"detail": exc.messages}, status=status.HTTP_409_CONFLICT
             )
-        return Response(OrderSerializer(order).data)
+        return Response(AdminOrderSerializer(order).data)
 
 
 class DiscardDraftView(APIView):
@@ -409,7 +422,26 @@ class DiscardDraftView(APIView):
             return Response(
                 {"detail": exc.messages}, status=status.HTTP_409_CONFLICT
             )
-        return Response(OrderSerializer(order).data)
+        return Response(AdminOrderSerializer(order).data)
+
+
+class AdminNoteView(APIView):
+    """PATCH /api/pedidos/{id}/nota-admin (RF-17). Admin-only."""
+
+    permission_classes = [IsAdmin]
+
+    def patch(self, request, pk):
+        try:
+            order = Order.objects.get(pk=pk)
+        except Order.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        try:
+            services.set_admin_note(order, request.data.get("note", ""))
+        except DjangoValidationError as exc:
+            return Response(
+                {"detail": exc.messages}, status=status.HTTP_400_BAD_REQUEST
+            )
+        return Response(AdminOrderSerializer(order).data)
 
 
 class SetDeliveredView(APIView):

@@ -67,6 +67,7 @@ const IN_PROGRESS_ORDER = {
       line_type: "ORIGINAL" as const,
       is_voided: false,
       void_reason: null,
+      line_total: "4.50",
     },
   ],
 };
@@ -115,6 +116,18 @@ describe("OrderBuilder (T66, RF-3/4/5/6/7)", () => {
     await screen.findByText(/en preparación/i);
     unmount();
     expect(deleteOrder).not.toHaveBeenCalled();
+  });
+
+  it("shows each line's unit price and total, and the order total (RF-3)", async () => {
+    vi.mocked(getOrder).mockResolvedValue({
+      ...IN_PROGRESS_ORDER,
+      items: [{ ...IN_PROGRESS_ORDER.items[0], quantity: 3, line_total: "13.50" }],
+      total: "13.50",
+    });
+    render(<OrderBuilder orderId={41} />);
+    expect(await screen.findByText(/\$4,50 c\/u/)).toBeInTheDocument();
+    expect(screen.getAllByText("$13,50")).toHaveLength(2);
+    expect(screen.getByText("Total")).toBeInTheDocument();
   });
 
   it("removes an item from a draft without asking for a reason (RF-2)", async () => {
@@ -181,6 +194,7 @@ describe("OrderBuilder (T66, RF-3/4/5/6/7)", () => {
       line_type: "ORIGINAL",
       is_voided: false,
       void_reason: null,
+      line_total: "4.50",
     });
     const user = userEvent.setup();
     render(<OrderBuilder orderId={41} />);
@@ -208,6 +222,7 @@ describe("OrderBuilder (T66, RF-3/4/5/6/7)", () => {
       line_type: "ORIGINAL",
       is_voided: false,
       void_reason: null,
+      line_total: "6.00",
     });
     const user = userEvent.setup();
     render(<OrderBuilder orderId={41} />);
@@ -304,6 +319,7 @@ describe("OrderBuilder (T66, RF-3/4/5/6/7)", () => {
       line_type: "ORIGINAL",
       is_voided: false,
       void_reason: null,
+      line_total: "4.50",
       print_warning: "Error al imprimir el ticket de cocina.",
     });
     const user = userEvent.setup();

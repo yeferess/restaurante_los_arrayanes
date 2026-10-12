@@ -6,12 +6,14 @@ import { ChargeOrderModal } from "./ChargeOrderModal";
 vi.mock("@/lib/api/payments", () => ({
   listAccounts: vi.fn(),
   voidCharge: vi.fn(),
+  previewCharge: vi.fn(),
+  printReceipt: vi.fn(),
 }));
 vi.mock("@/lib/api/orders", () => ({
   chargeOrder: vi.fn(),
 }));
 
-import { listAccounts, voidCharge } from "@/lib/api/payments";
+import { listAccounts, voidCharge, previewCharge, printReceipt } from "@/lib/api/payments";
 import { chargeOrder } from "@/lib/api/orders";
 
 const ORDER = {
@@ -32,6 +34,7 @@ const ORDER = {
       line_type: "ORIGINAL" as const,
       is_voided: false,
       void_reason: null,
+      line_total: "9.00",
     },
   ],
   total: "9.00",
@@ -56,6 +59,8 @@ describe("ChargeOrderModal (005-cobro, RF-1/3/4)", () => {
     vi.mocked(listAccounts).mockReset();
     vi.mocked(chargeOrder).mockReset();
     vi.mocked(voidCharge).mockReset();
+    vi.mocked(previewCharge).mockReset();
+    vi.mocked(printReceipt).mockReset();
     onClose.mockReset();
     onCharged.mockReset();
     vi.mocked(listAccounts).mockResolvedValue(ACCOUNTS);
@@ -83,12 +88,117 @@ describe("ChargeOrderModal (005-cobro, RF-1/3/4)", () => {
     expect(await screen.findByText("$20.000,00")).toBeInTheDocument();
   });
 
+  it("shows each line's backend total, not a computed one (RF-4)", async () => {
+    render(
+      <ChargeOrderModal
+        order={{ ...ORDER, items: [{ ...ORDER.items[0], line_total: "123.00" }] }}
+        onClose={onClose}
+        onCharged={onCharged}
+      />
+    );
+    expect(await screen.findByText("$123,00")).toBeInTheDocument();
+  });
+
+  it("previews the total to pay and charges with the discount (RF-10)", async () => {
+    vi.mocked(previewCharge).mockResolvedValue({
+      subtotal: "9.00",
+      discount: "2",
+      total: "7.00",
+    });
+    vi.mocked(chargeOrder).mockResolvedValue({
+      ...ORDER,
+      status: "CHARGED" as const,
+      active_payment: {
+        account_name: "Efectivo",
+        subtotal: "9.00",
+        discount: "2.00",
+        discount_reason: "cliente frecuente",
+        amount: "7.00",
+        charged_by: "admin1",
+        charged_at: "2026-03-10T20:15:00Z",
+      },
+    });
+    const user = userEvent.setup();
+    render(<ChargeOrderModal order={ORDER} onClose={onClose} onCharged={onCharged} />);
+    await screen.findByRole("option", { name: "Efectivo" });
+
+    await user.type(screen.getByLabelText(/descuento \(opcional/i), "2");
+    await user.type(screen.getByLabelText(/motivo del descuento/i), "cliente frecuente");
+
+    expect(await screen.findByText("$7,00")).toBeInTheDocument();
+    expect(previewCharge).toHaveBeenLastCalledWith(41, 2);
+
+    await user.click(screen.getByRole("button", { name: /^cobrar$/i }));
+
+    await waitFor(() =>
+      expect(chargeOrder).toHaveBeenCalledWith(41, 1, {
+        amount: 2,
+        reason: "cliente frecuente",
+      })
+    );
+    expect(await screen.findByText(/descuento −\$2,00 \(cliente frecuente\)/i)).toBeInTheDocument();
+  });
+
+  it("blocks charging while the discount is invalid", async () => {
+    vi.mocked(previewCharge).mockRejectedValue({
+      detail: ["El descuento no puede ser mayor que el total del pedido."],
+    });
+    const user = userEvent.setup();
+    render(<ChargeOrderModal order={ORDER} onClose={onClose} onCharged={onCharged} />);
+    await screen.findByRole("option", { name: "Efectivo" });
+
+    await user.type(screen.getByLabelText(/descuento \(opcional/i), "99");
+
+    expect(await screen.findByText(/no puede ser mayor/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^cobrar$/i })).toBeDisabled();
+  });
+
+  it("shows the admin note read-only", async () => {
+    render(
+      <ChargeOrderModal
+        order={{ ...ORDER, admin_note: "mesa de cumpleanos" }}
+        onClose={onClose}
+        onCharged={onCharged}
+      />
+    );
+    expect(await screen.findByText(/nota: mesa de cumpleanos/i)).toBeInTheDocument();
+  });
+
+  it("prints the customer receipt after charging (RF-11)", async () => {
+    vi.mocked(chargeOrder).mockResolvedValue({
+      ...ORDER,
+      status: "CHARGED" as const,
+      active_payment: {
+        account_name: "Efectivo",
+        subtotal: "9.00",
+        discount: "0.00",
+        discount_reason: "",
+        amount: "9.00",
+        charged_by: "admin1",
+        charged_at: "2026-03-10T20:15:00Z",
+      },
+    });
+    vi.mocked(printReceipt).mockResolvedValue({ print_warning: null });
+    const user = userEvent.setup();
+    render(<ChargeOrderModal order={ORDER} onClose={onClose} onCharged={onCharged} />);
+    await screen.findByRole("option", { name: "Efectivo" });
+    await user.click(screen.getByRole("button", { name: /^cobrar$/i }));
+
+    await user.click(await screen.findByRole("button", { name: /imprimir comprobante/i }));
+
+    expect(printReceipt).toHaveBeenCalledWith(41);
+    expect(await screen.findByText(/comprobante impreso/i)).toBeInTheDocument();
+  });
+
   it("charges the order and shows a confirmation with an undo option (T29, RF-6)", async () => {
     const charged = {
       ...ORDER,
       status: "CHARGED" as const,
       active_payment: {
         account_name: "Nequi #1234",
+        subtotal: "9.00",
+        discount: "0.00",
+        discount_reason: "",
         amount: "9.00",
         charged_by: "admin1",
         charged_at: "2026-03-10T20:15:00Z",
@@ -118,6 +228,9 @@ describe("ChargeOrderModal (005-cobro, RF-1/3/4)", () => {
       status: "CHARGED" as const,
       active_payment: {
         account_name: "Efectivo",
+        subtotal: "9.00",
+        discount: "0.00",
+        discount_reason: "",
         amount: "9.00",
         charged_by: "admin1",
         charged_at: "2026-03-10T20:15:00Z",
@@ -158,6 +271,9 @@ describe("ChargeOrderModal (005-cobro, RF-1/3/4)", () => {
       status: "CHARGED" as const,
       active_payment: {
         account_name: "Efectivo",
+        subtotal: "9.00",
+        discount: "0.00",
+        discount_reason: "",
         amount: "9.00",
         charged_by: "admin1",
         charged_at: "2026-03-10T20:15:00Z",
@@ -218,6 +334,9 @@ describe("ChargeOrderModal (005-cobro, RF-1/3/4)", () => {
       status: "CHARGED" as const,
       active_payment: {
         account_name: "Efectivo",
+        subtotal: "9.00",
+        discount: "0.00",
+        discount_reason: "",
         amount: "9.00",
         charged_by: "admin1",
         charged_at: "2026-03-10T20:15:00Z",

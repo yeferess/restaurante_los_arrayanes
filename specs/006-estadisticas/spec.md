@@ -50,7 +50,9 @@ documento dice explícitamente cuál de las dos usa.
 
 - El sistema deberá mostrar, para una fecha dada (por defecto el día
   de hoy, hora local del restaurante), el total de dinero cobrado ese
-  día y la cantidad de pedidos distintos cobrados ese día.
+  día y la cantidad de pedidos distintos cobrados ese día. El dinero
+  cobrado es el neto de cada cobro, ya descontado el descuento que el
+  admin haya aplicado ([005 RF-10](../005-cobro/spec.md)).
 - "Cantidad de pedidos cobrados" cuenta pedidos, no eventos de cobro:
   un pedido al que se le anuló un cobro y se le volvió a cobrar el
   mismo día (sin importar cuántas veces) cuenta una sola vez.

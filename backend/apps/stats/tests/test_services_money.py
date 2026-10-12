@@ -50,6 +50,15 @@ class MoneyAggregationTests(TestCase):
         self._charge(2, self.nequi, "20000.00")
         self.assertEqual(money_total(DAY, DAY), Decimal("30000.00"))
 
+    def test_money_total_is_net_of_discounts(self):
+        """005 RF-10: a discount lowers what the day actually collected."""
+        order = order_services.create_order(self.waiter, table_number=1)
+        order_services.add_item(order, name="Item", price=Decimal("10000.00"))
+        order_services.send_order(order)
+        payment = charge_order(order, self.admin, self.efectivo, discount="2500")
+        Payment.objects.filter(pk=payment.pk).update(charged_at=_local())
+        self.assertEqual(money_total(DAY, DAY), Decimal("7500.00"))
+
     def test_orders_charged_count_counts_distinct_orders(self):
         self._charge(1, self.efectivo, "10000.00")
         self._charge(2, self.nequi, "20000.00")

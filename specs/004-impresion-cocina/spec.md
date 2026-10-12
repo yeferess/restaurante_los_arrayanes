@@ -468,3 +468,9 @@ y ya incorporado:
   fecha/hora que 003-RF-14 exige en pantalla: ambos se imprimen con el
   mismo tamaño de letra, al ser texto plano de un solo estilo (RF-2,
   RF-7).
+
+> **Nota (2026-10-12):** el comprobante para el cliente
+> ([005-cobro RF-11](../005-cobro/spec.md)) usa esta misma impresora y el
+> mismo lock de impresión, para que nunca se mezcle con un ticket de
+> cocina, pero no es un `PrintJob`: no se consolida, no se reintenta ni
+> marca "No impreso en cocina".

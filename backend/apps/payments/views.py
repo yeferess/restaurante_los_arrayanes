@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.orders.models import Order
-from apps.orders.serializers import OrderSerializer
+from apps.orders.serializers import AdminOrderSerializer
 from apps.payments import services
 from apps.payments.models import PaymentAccount
 from apps.payments.permissions import IsAdmin
@@ -36,7 +36,48 @@ class VoidChargeView(APIView):
         except DjangoValidationError as exc:
             return Response({"detail": exc.messages}, status=_status_for(exc))
 
-        return Response(OrderSerializer(order).data)
+        return Response(AdminOrderSerializer(order).data)
+
+
+def _get_order_or_404(pk):
+    try:
+        return Order.objects.get(pk=pk), None
+    except Order.DoesNotExist:
+        return None, Response(status=status.HTTP_404_NOT_FOUND)
+
+
+class PreviewChargeView(APIView):
+    """POST /api/pedidos/{id}/cobro/previsualizar (RF-10). Admin-only:
+    subtotal, discount and total to pay — saves nothing."""
+
+    permission_classes = [IsAdmin]
+
+    def post(self, request, pk):
+        order, error = _get_order_or_404(pk)
+        if error:
+            return error
+        try:
+            amounts = services.preview_charge(order, request.data.get("discount"))
+        except DjangoValidationError as exc:
+            return Response({"detail": exc.messages}, status=_status_for(exc))
+        return Response({key: str(value) for key, value in amounts.items()})
+
+
+class ReceiptView(APIView):
+    """POST /api/pedidos/{id}/comprobante (RF-11). Admin-only: prints the
+    customer receipt of a charged order."""
+
+    permission_classes = [IsAdmin]
+
+    def post(self, request, pk):
+        order, error = _get_order_or_404(pk)
+        if error:
+            return error
+        try:
+            warning = services.print_receipt(order)
+        except DjangoValidationError as exc:
+            return Response({"detail": exc.messages}, status=_status_for(exc))
+        return Response({"print_warning": warning})
 
 
 class AccountListCreateView(APIView):

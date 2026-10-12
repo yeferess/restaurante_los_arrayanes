@@ -36,6 +36,8 @@ class TableSerializer(serializers.ModelSerializer):
 
 
 class OrderItemSerializer(serializers.ModelSerializer):
+    line_total = serializers.SerializerMethodField()
+
     class Meta:
         model = OrderItem
         fields = [
@@ -48,7 +50,13 @@ class OrderItemSerializer(serializers.ModelSerializer):
             "line_type",
             "is_voided",
             "void_reason",
+            "line_total",
         ]
+
+    def get_line_total(self, obj):
+        """RF-3: quantity × unit price, computed here so no screen does
+        the math itself (constitution rule 3)."""
+        return str(obj.unit_price * obj.quantity)
 
 
 class OrderSerializer(serializers.ModelSerializer):
@@ -96,10 +104,21 @@ class OrderSerializer(serializers.ModelSerializer):
             return None
         return {
             "account_name": payment.account.name,
+            "subtotal": str(payment.subtotal),
+            "discount": str(payment.discount),
+            "discount_reason": payment.discount_reason,
             "amount": str(payment.amount),
             "charged_by": payment.charged_by.username,
             "charged_at": payment.charged_at.isoformat(),
         }
+
+
+class AdminOrderSerializer(OrderSerializer):
+    """RF-17: same payload plus the admin-only note — used exclusively by
+    admin-only views so a waiter never receives it."""
+
+    class Meta(OrderSerializer.Meta):
+        fields = OrderSerializer.Meta.fields + ["admin_note"]
 
 
 class OccupiedTableSerializer(serializers.Serializer):
@@ -111,7 +130,7 @@ class OccupiedTableSerializer(serializers.Serializer):
 
     def get_order(self, obj):
         order = services.active_order_for_table(obj.number)
-        return OrderSerializer(order).data if order else None
+        return AdminOrderSerializer(order).data if order else None
 
     def get_is_stale(self, obj):
         order = services.active_order_for_table(obj.number)

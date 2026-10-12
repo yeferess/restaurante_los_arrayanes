@@ -24,11 +24,17 @@ export type OrderItem = {
   line_type: "ORIGINAL" | "ADDITION";
   is_voided: boolean;
   void_reason: string | null;
+  /** 003 RF-3: quantity × unit price, computed by the backend. */
+  line_total: string;
   print_warning?: string | null;
 };
 
 export type ActivePayment = {
   account_name: string;
+  /** 005 RF-10: items total, peso discount and what was actually paid. */
+  subtotal: string;
+  discount: string;
+  discount_reason: string;
   amount: string;
   charged_by: string;
   charged_at: string;
@@ -50,6 +56,8 @@ export type Order = {
   sent_at: string | null;
   created_at: string;
   draft_reminder: boolean;
+  /** 003 RF-17: only present in admin-only responses. */
+  admin_note?: string;
 };
 
 /** RF-15: an occupied table with the order holding it (admin-only). */
@@ -178,10 +186,25 @@ export function setDelivered(
   });
 }
 
-export function chargeOrder(orderId: number, accountId: number): Promise<Order> {
+export function chargeOrder(
+  orderId: number,
+  accountId: number,
+  discount?: { amount: number; reason: string }
+): Promise<Order> {
+  const body = discount
+    ? { account_id: accountId, discount: discount.amount, discount_reason: discount.reason }
+    : { account_id: accountId };
   return requestJson<Order>(`/api/pedidos/${orderId}/cobrar`, {
     method: "POST",
-    body: JSON.stringify({ account_id: accountId }),
+    body: JSON.stringify(body),
+  });
+}
+
+/** 003 RF-17: the admin's own note on an order. */
+export function setAdminNote(orderId: number, note: string): Promise<Order> {
+  return requestJson<Order>(`/api/pedidos/${orderId}/nota-admin`, {
+    method: "PATCH",
+    body: JSON.stringify({ note }),
   });
 }
 

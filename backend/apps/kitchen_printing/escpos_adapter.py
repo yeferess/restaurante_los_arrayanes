@@ -21,14 +21,14 @@ class EscposUsbPrinterAdapter(PrinterAdapter):
     def __init__(self, printer_name: str | None = None):
         self.printer_name = printer_name or win32print.GetDefaultPrinter()
 
-    def print_ticket(self, text: str) -> None:
+    def print_ticket(self, text: str, doc_name: str = "Ticket de cocina") -> None:
         try:
             handle = win32print.OpenPrinter(self.printer_name)
         except Exception as exc:
             raise PrinterNotDetectedError(str(exc)) from exc
 
         try:
-            win32print.StartDocPrinter(handle, 1, ("Ticket de cocina", None, "RAW"))
+            win32print.StartDocPrinter(handle, 1, (doc_name, None, "RAW"))
             win32print.StartPagePrinter(handle)
             win32print.WritePrinter(handle, self._with_paper_feed(text))
             win32print.EndPagePrinter(handle)

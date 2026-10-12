@@ -4,11 +4,16 @@ import { useEffect, useState } from "react";
 import { chargeOrder, type Order, type ApiErrorBody } from "@/lib/api/orders";
 import {
   listAccounts,
+  previewCharge,
+  printReceipt,
   voidCharge,
+  type ChargePreview,
   type PaymentAccount,
 } from "@/lib/api/payments";
 import { formatPrice } from "@/lib/format";
 import styles from "./ChargeOrderModal.module.css";
+
+const PREVIEW_DELAY_MS = 300;
 
 function formatError(error: unknown): string {
   const detail = (error as ApiErrorBody)?.detail;
@@ -32,9 +37,15 @@ function formatSentAt(sentAt: string | null): string | null {
   )}:${pad(date.getMinutes())}`;
 }
 
-/** Charge confirmation modal (005-cobro — RF-1, RF-3, RF-4): shows the
- * order's already-calculated total and lets the admin pick a payment
- * option from the catalog before confirming. */
+/** The backend's preview for one specific discount input — only shown
+ * while that input is still the current one. */
+type PreviewState = { forDiscount: string; result: ChargePreview | null; error: string | null };
+
+/** Charge confirmation modal (005-cobro — RF-1, RF-3, RF-4, RF-10,
+ * RF-11): shows the order's already-calculated lines and total, an
+ * optional peso discount (the total to pay comes from the backend's
+ * preview, never computed here), the payment option, and — once
+ * charged — the customer receipt. */
 export function ChargeOrderModal({
   order,
   onClose,
@@ -46,8 +57,14 @@ export function ChargeOrderModal({
 }) {
   const [accounts, setAccounts] = useState<PaymentAccount[]>([]);
   const [accountId, setAccountId] = useState("");
+  const [discount, setDiscount] = useState("");
+  const [discountReason, setDiscountReason] = useState("");
+  const [preview, setPreview] = useState<PreviewState | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [charged, setCharged] = useState<Order | null>(null);
+
+  const hasDiscount = discount.trim() !== "" && Number(discount) !== 0;
+  const currentPreview = hasDiscount && preview?.forDiscount === discount ? preview : null;
 
   useEffect(() => {
     listAccounts()
@@ -58,10 +75,28 @@ export function ChargeOrderModal({
       .catch((error) => setMessage(formatError(error)));
   }, []);
 
+  useEffect(() => {
+    if (!hasDiscount) return;
+    const requested = discount;
+    const timer = setTimeout(() => {
+      previewCharge(order.id, Number(requested))
+        .then((result) => setPreview({ forDiscount: requested, result, error: null }))
+        .catch((error) =>
+          setPreview({ forDiscount: requested, result: null, error: formatError(error) })
+        );
+    }, PREVIEW_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [discount, hasDiscount, order.id]);
+
   async function handleCharge() {
     setMessage(null);
     try {
-      const updated = await chargeOrder(order.id, Number(accountId));
+      const updated = hasDiscount
+        ? await chargeOrder(order.id, Number(accountId), {
+            amount: Number(discount),
+            reason: discountReason,
+          })
+        : await chargeOrder(order.id, Number(accountId));
       setCharged(updated);
     } catch (error) {
       setMessage(formatError(error));
@@ -81,15 +116,34 @@ export function ChargeOrderModal({
     }
   }
 
+  async function handleReceipt() {
+    if (!charged) return;
+    setMessage(null);
+    try {
+      const result = await printReceipt(charged.id);
+      setMessage(result.print_warning ?? "Comprobante impreso.");
+    } catch (error) {
+      setMessage(formatError(error));
+    }
+  }
+
   if (charged) {
+    const payment = charged.active_payment;
     return (
       <div className={styles.overlay}>
         <div className={styles.modal}>
           <h2 className={styles.heading}>{orderTitle(charged)} cobrado</h2>
           <p className={styles.confirmationText}>
-            Cobrado con <strong>{charged.active_payment?.account_name}</strong>
-            {" — "}${formatPrice(charged.active_payment?.amount ?? 0)}
+            Cobrado con <strong>{payment?.account_name}</strong>
+            {" — "}${formatPrice(payment?.amount ?? 0)}
           </p>
+          {payment && Number(payment.discount) > 0 && (
+            <p className={styles.discountSummary}>
+              Subtotal ${formatPrice(payment.subtotal)} · Descuento −$
+              {formatPrice(payment.discount)}
+              {payment.discount_reason && ` (${payment.discount_reason})`}
+            </p>
+          )}
 
           {message && (
             <p className={styles.message} role="status">
@@ -104,6 +158,13 @@ export function ChargeOrderModal({
               onClick={handleUndo}
             >
               Anular cobro
+            </button>
+            <button
+              type="button"
+              className={styles.cancelButton}
+              onClick={handleReceipt}
+            >
+              Imprimir comprobante
             </button>
             <button
               type="button"
@@ -136,7 +197,7 @@ export function ChargeOrderModal({
                 <span>
                   {item.quantity}x {item.name}
                 </span>
-                <span>${formatPrice(Number(item.unit_price) * item.quantity)}</span>
+                <span>${formatPrice(item.line_total)}</span>
               </li>
             ))}
         </ul>
@@ -144,6 +205,53 @@ export function ChargeOrderModal({
           <span>Total</span>
           <span className={styles.totalAmount}>${formatPrice(order.total)}</span>
         </div>
+
+        {order.admin_note && (
+          <p className={styles.adminNote}>Nota: {order.admin_note}</p>
+        )}
+
+        <div className={styles.field}>
+          <label className={styles.label} htmlFor="charge-discount">
+            Descuento (opcional, $)
+          </label>
+          <input
+            id="charge-discount"
+            className={styles.select}
+            type="number"
+            min={0}
+            step="any"
+            inputMode="decimal"
+            value={discount}
+            onChange={(event) => setDiscount(event.target.value)}
+          />
+        </div>
+        {hasDiscount && (
+          <div className={styles.field}>
+            <label className={styles.label} htmlFor="charge-discount-reason">
+              Motivo del descuento (opcional)
+            </label>
+            <input
+              id="charge-discount-reason"
+              className={styles.select}
+              maxLength={200}
+              value={discountReason}
+              onChange={(event) => setDiscountReason(event.target.value)}
+            />
+          </div>
+        )}
+        {currentPreview?.result && (
+          <div className={`${styles.totalRow} ${styles.payRow}`}>
+            <span>Total a pagar</span>
+            <span className={styles.totalAmount}>
+              ${formatPrice(currentPreview.result.total)}
+            </span>
+          </div>
+        )}
+        {currentPreview?.error && (
+          <p className={styles.message} role="alert">
+            {currentPreview.error}
+          </p>
+        )}
 
         {message && (
           <p className={styles.message} role="status">
@@ -177,7 +285,7 @@ export function ChargeOrderModal({
             type="button"
             className={styles.chargeButton}
             onClick={handleCharge}
-            disabled={!accountId}
+            disabled={!accountId || Boolean(currentPreview?.error)}
           >
             Cobrar
           </button>

@@ -37,6 +37,12 @@ class Payment(models.Model):
     account = models.ForeignKey(
         PaymentAccount, on_delete=models.PROTECT, related_name="payments"
     )
+    # RF-10: `subtotal` is the items total at charge time, `discount` an
+    # optional peso amount the admin took off, and `amount` what was
+    # actually paid (subtotal - discount) — the value statistics add up.
+    subtotal = models.DecimalField(max_digits=10, decimal_places=2)
+    discount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    discount_reason = models.CharField(max_length=200, blank=True)
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     status = models.CharField(
         max_length=6, choices=Status.choices, default=Status.ACTIVE
@@ -65,6 +71,11 @@ class Payment(models.Model):
                 name="unique_active_payment_per_order",
             )
         ]
+
+    def save(self, *args, **kwargs):
+        if self.subtotal is None:
+            self.subtotal = self.amount + (self.discount or 0)
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"Payment {self.id} for order {self.order_id} ({self.status})"

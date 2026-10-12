@@ -2,6 +2,7 @@ from django.urls import path
 
 from apps.orders.views import (
     AddItemView,
+    AdminNoteView,
     ChargedOrdersView,
     ChargeOrderView,
     CreateOrderView,
@@ -61,6 +62,7 @@ urlpatterns = [
     ),
     path("pedidos/<int:pk>/cobrar", ChargeOrderView.as_view(), name="orders-charge"),
     path("pedidos/<int:pk>/anular", VoidOrderView.as_view(), name="orders-void"),
+    path("pedidos/<int:pk>/nota-admin", AdminNoteView.as_view(), name="orders-admin-note"),
     path(
         "pedidos/<int:pk>/eliminar-borrador",
         DiscardDraftView.as_view(),

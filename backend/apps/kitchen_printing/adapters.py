@@ -25,6 +25,7 @@ class PrinterFailureError(PrinterError):
 
 class PrinterAdapter(ABC):
     @abstractmethod
-    def print_ticket(self, text: str) -> None:
-        """Print `text` as-is. Raises PrinterNotDetectedError or
+    def print_ticket(self, text: str, doc_name: str = "Ticket de cocina") -> None:
+        """Print `text` as-is; `doc_name` is only the job's label in the
+        Windows queue. Raises PrinterNotDetectedError or
         PrinterFailureError on failure; returns normally on success."""

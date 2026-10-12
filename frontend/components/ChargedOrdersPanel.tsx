@@ -7,7 +7,9 @@ import {
   type Order,
   type ApiErrorBody,
 } from "@/lib/api/orders";
+import { printReceipt } from "@/lib/api/payments";
 import { formatPrice, todayIso } from "@/lib/format";
+import { AdminNoteEditor } from "./AdminNoteEditor";
 import styles from "./ChargedOrdersPanel.module.css";
 
 function formatError(error: unknown): string {
@@ -46,6 +48,16 @@ export function ChargedOrdersPanel() {
   useEffect(() => {
     refresh();
   }, [refresh]);
+
+  async function handleReceipt(order: Order) {
+    setMessage(null);
+    try {
+      const result = await printReceipt(order.id);
+      setMessage(result.print_warning ?? `Comprobante de ${orderTitle(order)} impreso.`);
+    } catch (error) {
+      setMessage(formatError(error));
+    }
+  }
 
   async function handleReprint(order: Order) {
     setMessage(null);
@@ -106,23 +118,48 @@ export function ChargedOrdersPanel() {
                           {item.quantity}x {item.name}
                         </span>
                         <span className={styles.itemPrice}>
-                          ${formatPrice(item.unit_price)} c/u
+                          ${formatPrice(item.unit_price)} c/u ·{" "}
+                          <strong className={styles.itemLineTotal}>
+                            ${formatPrice(item.line_total)}
+                          </strong>
                         </span>
                       </div>
                       {item.note && <p className={styles.note}>Nota: {item.note}</p>}
                     </li>
                   ))}
                 </ul>
+                {order.active_payment && Number(order.active_payment.discount) > 0 && (
+                  <div className={styles.amounts}>
+                    <span>Subtotal ${formatPrice(order.active_payment.subtotal)}</span>
+                    <span className={styles.discount}>
+                      Descuento −${formatPrice(order.active_payment.discount)}
+                      {order.active_payment.discount_reason &&
+                        ` (${order.active_payment.discount_reason})`}
+                    </span>
+                  </div>
+                )}
                 <div className={styles.footer}>
-                  <span className={styles.total}>Total ${formatPrice(order.total)}</span>
-                  <button
-                    type="button"
-                    className={styles.actionButton}
-                    onClick={() => handleReprint(order)}
-                  >
-                    Reimprimir
-                  </button>
+                  <span className={styles.total}>
+                    Total ${formatPrice(order.active_payment?.amount ?? order.total)}
+                  </span>
+                  <div className={styles.footerActions}>
+                    <button
+                      type="button"
+                      className={styles.actionButton}
+                      onClick={() => handleReceipt(order)}
+                    >
+                      Imprimir comprobante
+                    </button>
+                    <button
+                      type="button"
+                      className={styles.actionButton}
+                      onClick={() => handleReprint(order)}
+                    >
+                      Reimprimir
+                    </button>
+                  </div>
                 </div>
+                <AdminNoteEditor order={order} />
               </li>
             );
           })}

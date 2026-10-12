@@ -10,7 +10,7 @@ class FakePrinterAdapter(PrinterAdapter):
         self.call_count = 0
         self.printed_texts = []
 
-    def print_ticket(self, text: str) -> None:
+    def print_ticket(self, text: str, doc_name: str = "Ticket de cocina") -> None:
         self.call_count += 1
         if self.fail_with is not None:
             raise self.fail_with("Fallo simulado por FakePrinterAdapter.")

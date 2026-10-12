@@ -215,8 +215,13 @@ export function OrderBuilder({ orderId }: { orderId: number }) {
               >
                 <div className={styles.itemInfo}>
                   <span className={styles.itemLine}>
-                    <span className={styles.itemQty}>{item.quantity}x</span> {item.name} — $
-                    {formatPrice(item.unit_price)}
+                    <span className={styles.itemQty}>{item.quantity}x</span> {item.name}
+                  </span>
+                  <span className={styles.itemPrices}>
+                    ${formatPrice(item.unit_price)} c/u ·{" "}
+                    <strong className={styles.itemLineTotal}>
+                      ${formatPrice(item.line_total)}
+                    </strong>
                   </span>
                   {item.note && <span className={styles.itemNote}>{item.note}</span>}
                   {item.is_voided && <span className={styles.itemVoidedTag}>Anulado</span>}
@@ -242,6 +247,12 @@ export function OrderBuilder({ orderId }: { orderId: number }) {
               </li>
             ))}
           </ul>
+        )}
+        {order.items.length > 0 && (
+          <div className={styles.totalRow}>
+            <span>Total</span>
+            <span className={styles.totalAmount}>${formatPrice(order.total)}</span>
+          </div>
         )}
       </div>
 

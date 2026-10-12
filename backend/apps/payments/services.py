@@ -2,15 +2,25 @@
 sección 5; RF-1 a RF-7).
 """
 
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 
+from apps.kitchen_printing.adapters import PrinterFailureError, PrinterNotDetectedError
+from apps.kitchen_printing.factory import get_printer_adapter
+from apps.kitchen_printing.services import (
+    PRINTER_FAILURE_MESSAGE,
+    PRINTER_NOT_DETECTED_MESSAGE,
+    _print_lock,
+)
 from apps.orders.models import Order, OrderAction, Table
 from apps.orders.services import notify_orders_changed, register_action
 from apps.payments.models import Payment, PaymentAccount
+from apps.payments.receipt import build_receipt_text
+
+DISCOUNT_REASON_MAX_LENGTH = 200
 
 
 def create_account(name):
@@ -36,12 +46,19 @@ def _active_items_total(order):
     )
 
 
-def charge_order(order, admin, account):
-    """RF-1, RF-3, RF-4, RF-5: charge the order of an occupied table
-    with the chosen payment option. The DB's own
-    `unique_active_payment_per_order` constraint (apps.payments.models)
-    rejects a concurrent double-charge instead of an application-level
-    lock (plan.md, sección 4)."""
+def _parse_discount(raw):
+    if raw in (None, ""):
+        return Decimal("0.00")
+    try:
+        discount = Decimal(str(raw))
+    except (InvalidOperation, ValueError):
+        raise ValidationError("El descuento debe ser un valor numérico.", code="invalid")
+    if not discount.is_finite():
+        raise ValidationError("El descuento debe ser un valor numérico.", code="invalid")
+    return discount
+
+
+def _ensure_chargeable(order):
     try:
         table = Table.objects.get(number=order.table_number)
     except Table.DoesNotExist:
@@ -52,13 +69,53 @@ def charge_order(order, admin, account):
         raise ValidationError(
             "Este pedido no admite cobro en este momento.", code="not_chargeable"
         )
+    return table
 
-    amount = _active_items_total(order)
+
+def compute_charge(order, raw_discount=None):
+    """RF-10: subtotal of the active items, the optional peso discount
+    and the total to pay. The single place where the discount is
+    validated — used by both the preview and the charge itself."""
+    subtotal = _active_items_total(order)
+    discount = _parse_discount(raw_discount)
+    if discount < 0:
+        raise ValidationError("El descuento no puede ser negativo.", code="invalid")
+    if discount > subtotal:
+        raise ValidationError(
+            "El descuento no puede ser mayor que el total del pedido.", code="invalid"
+        )
+    return {"subtotal": subtotal, "discount": discount, "total": subtotal - discount}
+
+
+def preview_charge(order, raw_discount=None):
+    """RF-10: what charging with this discount would produce — saves
+    nothing."""
+    _ensure_chargeable(order)
+    return compute_charge(order, raw_discount)
+
+
+def charge_order(order, admin, account, discount=None, discount_reason=""):
+    """RF-1, RF-3, RF-4, RF-5, RF-10: charge the order of an occupied
+    table with the chosen payment option and an optional peso discount.
+    The DB's own `unique_active_payment_per_order` constraint
+    (apps.payments.models) rejects a concurrent double-charge instead of
+    an application-level lock (plan.md, sección 4)."""
+    table = _ensure_chargeable(order)
+    amounts = compute_charge(order, discount)
+    reason = (discount_reason or "").strip()[:DISCOUNT_REASON_MAX_LENGTH]
+    if amounts["discount"] == 0:
+        reason = ""
 
     try:
         with transaction.atomic():
             payment = Payment.objects.create(
-                order=order, account=account, amount=amount, charged_by=admin
+                order=order,
+                account=account,
+                subtotal=amounts["subtotal"],
+                discount=amounts["discount"],
+                discount_reason=reason,
+                amount=amounts["total"],
+                charged_by=admin,
             )
     except IntegrityError:
         raise ValidationError("Este pedido ya fue cobrado.", code="already_charged")
@@ -69,6 +126,28 @@ def charge_order(order, admin, account):
     table.save(update_fields=["status"])
     register_action(order, OrderAction.ActionType.CHARGED, admin)
     return payment
+
+
+def print_receipt(order):
+    """RF-11: print the customer receipt of a charged order on the same
+    printer as the kitchen, under the same lock so both never interleave.
+    Not a kitchen PrintJob — nothing is stored. Returns a printer
+    warning, or None when it printed."""
+    payment = Payment.objects.filter(order=order, status=Payment.Status.ACTIVE).first()
+    if order.status != Order.Status.CHARGED or payment is None:
+        raise ValidationError(
+            "Solo se puede imprimir el comprobante de un pedido cobrado.",
+            code="not_charged",
+        )
+    text = build_receipt_text(order, payment)
+    with _print_lock:
+        try:
+            get_printer_adapter().print_ticket(text, doc_name="Comprobante")
+        except PrinterNotDetectedError:
+            return PRINTER_NOT_DETECTED_MESSAGE
+        except PrinterFailureError:
+            return PRINTER_FAILURE_MESSAGE
+    return None
 
 
 def void_charge(order, admin, reason):

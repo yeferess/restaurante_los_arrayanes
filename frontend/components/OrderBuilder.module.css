@@ -113,6 +113,32 @@
   font-weight: 700;
 }
 
+.itemPrices {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.itemLineTotal {
+  font-family: var(--font-geist-mono), monospace;
+  color: var(--ink);
+}
+
+.totalRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-top: 0.85rem;
+  padding-top: 0.75rem;
+  border-top: 2px dashed var(--border);
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.totalAmount {
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 1.1rem;
+}
+
 .itemNote {
   font-size: 0.85rem;
   color: var(--muted);
