@@ -56,6 +56,10 @@ html,
 body {
   max-width: 100vw;
   overflow-x: hidden;
+  /* clip, not hidden: hidden turns body into a scroll container that never
+     scrolls, which breaks position: sticky (admin sidebar, menu search bar).
+     Browsers without clip keep the hidden above. */
+  overflow-x: clip;
 }
 
 body {
