@@ -120,6 +120,10 @@ arman los pedidos), y respeta las reglas 4 y 5 de
 - Un producto del catálogo marcado como no disponible no aparece en la
   lectura de menú del mesero (002-gestion-menu RF-7), por lo que el
   sistema nunca lo ofrece como opción para agregar a un pedido.
+- Al agregar un producto del catálogo, el sistema deberá permitir al
+  mesero buscarlo por nombre sin distinguir mayúsculas ni tildes; la
+  lista solo muestra las coincidencias y queda elegida la primera. Si
+  nada coincide, lo avisa y no permite agregar.
 - Si un producto del catálogo deja de estar disponible entre que el
   mesero lo vio en su menú y el momento en que intenta agregarlo,
   entonces el sistema deberá rechazar la operación: el backend siempre
@@ -397,8 +401,8 @@ arman los pedidos), y respeta las reglas 4 y 5 de
 
 - El sistema deberá permitir al admin escribir y editar una nota
   general del pedido (máximo 300 caracteres), en cualquier estado del
-  pedido, desde los pedidos entrantes y desde los pedidos cobrados; al
-  cobrar la ve en modo lectura.
+  pedido, desde los pedidos entrantes, desde los pedidos cobrados y
+  desde la ventana de cobro.
 - El sistema nunca deberá enviarle esa nota a un mesero (no aparece en
   ninguna respuesta de la API para una cuenta de mesero), ni imprimirla
   en el ticket de cocina ni en el comprobante del cliente

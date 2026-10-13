@@ -12,6 +12,9 @@ import {
   type Product,
   type ApiErrorBody,
 } from "@/lib/api/menu";
+import searchStyles from "./MenuSearchBar.module.css";
+import { MenuSearchBar } from "./MenuSearchBar";
+import { useMenuSearch } from "./useMenuSearch";
 import styles from "./ProductosManagement.module.css";
 
 function formatError(error: unknown): string {
@@ -43,6 +46,8 @@ export function ProductosManagement() {
   const [newPrice, setNewPrice] = useState("");
 
   const [drafts, setDrafts] = useState<Record<number, ProductDraft>>({});
+  // 002 RF-9: highlights the product by its saved name, never hides rows.
+  const search = useMenuSearch(products, "admin-product");
 
   async function refresh() {
     const [categoryList, productList] = await Promise.all([
@@ -175,11 +180,31 @@ export function ProductosManagement() {
           {message}
         </p>
       )}
+      <MenuSearchBar
+        inputId="admin-menu-search"
+        query={search.query}
+        onQueryChange={search.setQuery}
+        count={search.count}
+        index={search.index}
+        onNext={search.next}
+        onPrevious={search.previous}
+      />
       <ul className={styles.list}>
         {products.map((product) => {
           const draft = drafts[product.id] ?? draftFrom(product);
           return (
-            <li key={product.id} className={styles.row}>
+            <li
+              key={product.id}
+              id={`admin-product-${product.id}`}
+              className={[
+                styles.row,
+                search.isMatch(product.id) && searchStyles.matchRow,
+                search.activeId === product.id && searchStyles.activeRow,
+              ]
+                .filter(Boolean)
+                .join(" ")}
+              aria-current={search.activeId === product.id ? "true" : undefined}
+            >
               <label className={styles.rowLabel} htmlFor={`product-name-${product.id}`}>
                 Nombre ({product.name})
               </label>

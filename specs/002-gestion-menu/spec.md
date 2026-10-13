@@ -158,6 +158,22 @@ regla 5 de [`docs/constitution.md`](../../docs/constitution.md).
   una categoría, o cree, edite, cambie la disponibilidad o elimine un
   producto: su acceso al menú es de solo lectura.
 
+### RF-9 — Búsqueda en el menú
+
+*(Agregado 2026-10-12.)*
+
+- El sistema deberá ofrecer, en el menú del mesero y en la gestión de
+  productos del admin, una barra de búsqueda por nombre que no distinga
+  mayúsculas de minúsculas ni tildes ("cancion" encuentra "Canción"; la
+  ñ cuenta como n).
+- La búsqueda no oculta productos: resalta la parte del nombre que
+  coincide (en el menú del mesero) y la fila completa del producto,
+  lleva la pantalla hasta la coincidencia actual, muestra "N de M
+  coincidencias" y permite saltar entre ellas (▲ ▼ o Enter). Si no hay
+  coincidencias, lo dice.
+- Es solo una ayuda de pantalla sobre el menú ya cargado: no cambia
+  ningún dato ni ninguna validación del backend.
+
 ### RF-8 — Permisos y autenticación
 
 - El sistema deberá exigir siempre una sesión autenticada válida para

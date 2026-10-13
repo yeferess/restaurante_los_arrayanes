@@ -84,4 +84,71 @@ describe("MenuMeseroView (T40, RF-6/7)", () => {
     unmount();
     expect(closeMock).toHaveBeenCalledTimes(1);
   });
+
+  // 002 RF-9 — barra de búsqueda que resalta sin ocultar el resto.
+  describe("menu search", () => {
+    const BIG_MENU = [
+      { id: 1, name: "Limonada", category: { id: 1, name: "Bebidas" }, price: "4.50", is_available: true },
+      { id: 2, name: "Jugo de mora", category: { id: 1, name: "Bebidas" }, price: "5.00", is_available: true },
+      { id: 3, name: "Canción de la casa", category: { id: 2, name: "Platos" }, price: "20.00", is_available: true },
+      { id: 4, name: "Mora con leche", category: { id: 1, name: "Bebidas" }, price: "6.00", is_available: true },
+    ];
+
+    beforeEach(() => {
+      vi.mocked(getMenu).mockResolvedValue(BIG_MENU);
+      Element.prototype.scrollIntoView = vi.fn();
+    });
+
+    it("highlights the matching part ignoring case and accents, keeping every dish", async () => {
+      const user = userEvent.setup();
+      const { container } = render(<MenuMeseroView />);
+      await screen.findByText(/limonada/i);
+
+      await user.type(screen.getByLabelText(/buscar en el menú/i), "CANCION");
+
+      const marks = container.querySelectorAll("mark");
+      expect(Array.from(marks).map((m) => m.textContent)).toEqual(["Canción"]);
+      expect(screen.getByText(/limonada/i)).toBeInTheDocument();
+      expect(screen.getByText(/1 de 1 coincidencia$/i)).toBeInTheDocument();
+      expect(container.querySelector("#menu-product-3")).toHaveAttribute("aria-current", "true");
+    });
+
+    it("scrolls to the current match and moves between matches with the arrows", async () => {
+      const user = userEvent.setup();
+      const { container } = render(<MenuMeseroView />);
+      await screen.findByText(/limonada/i);
+
+      await user.type(screen.getByLabelText(/buscar en el menú/i), "mora");
+      expect(screen.getByText(/1 de 2 coincidencias/i)).toBeInTheDocument();
+      expect(container.querySelector("#menu-product-2")).toHaveAttribute("aria-current", "true");
+      expect(Element.prototype.scrollIntoView).toHaveBeenCalled();
+
+      await user.click(screen.getByRole("button", { name: /coincidencia siguiente/i }));
+      expect(screen.getByText(/2 de 2 coincidencias/i)).toBeInTheDocument();
+      expect(container.querySelector("#menu-product-4")).toHaveAttribute("aria-current", "true");
+
+      await user.click(screen.getByRole("button", { name: /coincidencia siguiente/i }));
+      expect(container.querySelector("#menu-product-2")).toHaveAttribute("aria-current", "true");
+
+      await user.click(screen.getByRole("button", { name: /coincidencia anterior/i }));
+      expect(container.querySelector("#menu-product-4")).toHaveAttribute("aria-current", "true");
+    });
+
+    it("Enter jumps to the next match", async () => {
+      const user = userEvent.setup();
+      const { container } = render(<MenuMeseroView />);
+      await screen.findByText(/limonada/i);
+      await user.type(screen.getByLabelText(/buscar en el menú/i), "mora{Enter}");
+      expect(container.querySelector("#menu-product-4")).toHaveAttribute("aria-current", "true");
+    });
+
+    it("says when nothing was found", async () => {
+      const user = userEvent.setup();
+      const { container } = render(<MenuMeseroView />);
+      await screen.findByText(/limonada/i);
+      await user.type(screen.getByLabelText(/buscar en el menú/i), "sushi");
+      expect(screen.getByText(/no se encontró «sushi»/i)).toBeInTheDocument();
+      expect(container.querySelectorAll("mark")).toHaveLength(0);
+    });
+  });
 });

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { OrderBuilder } from "./OrderBuilder";
 
@@ -389,5 +389,65 @@ describe("OrderBuilder (T66, RF-3/4/5/6/7)", () => {
     render(<OrderBuilder orderId={41} />);
     expect(await screen.findByText("Cobrado")).toBeInTheDocument();
     expect(screen.queryByText("Entregado")).not.toBeInTheDocument();
+  });
+
+  // 003 RF-3 — buscador por nombre al agregar un ítem.
+  describe("product search", () => {
+    const MENU_WITH_ACCENTS = [
+      { id: 5, name: "Limonada", category: { id: 1, name: "Bebidas" }, price: "4.50", is_available: true },
+      { id: 6, name: "Canción de la casa", category: { id: 2, name: "Platos" }, price: "20.00", is_available: true },
+      { id: 7, name: "Jugo de piña", category: { id: 1, name: "Bebidas" }, price: "5.00", is_available: true },
+    ];
+
+    beforeEach(() => {
+      vi.mocked(getMenu).mockResolvedValue(MENU_WITH_ACCENTS);
+      vi.mocked(addItem).mockResolvedValue({
+        id: 201, order_id: 41, name: "Canción de la casa", unit_price: "20.00", quantity: 1,
+        note: "", line_type: "ORIGINAL", is_voided: false, void_reason: null, line_total: "20.00",
+      });
+    });
+
+    it("filters by name ignoring case and accents and selects the first match", async () => {
+      const user = userEvent.setup();
+      render(<OrderBuilder orderId={41} />);
+      const search = await screen.findByLabelText(/buscar por nombre/i);
+
+      await user.type(search, "CANCION");
+
+      const select = screen.getByLabelText(/^producto$/i);
+      expect(select).toHaveValue("6");
+      expect(within(select).getAllByRole("option").map((o) => o.textContent)).toEqual([
+        "Canción de la casa",
+      ]);
+    });
+
+    it("finds ñ when typing n", async () => {
+      const user = userEvent.setup();
+      render(<OrderBuilder orderId={41} />);
+      await user.type(await screen.findByLabelText(/buscar por nombre/i), "pina");
+      expect(screen.getByLabelText(/^producto$/i)).toHaveValue("7");
+    });
+
+    it("adds the filtered product and clears the search", async () => {
+      const user = userEvent.setup();
+      render(<OrderBuilder orderId={41} />);
+      const search = await screen.findByLabelText(/buscar por nombre/i);
+      await user.type(search, "cancion");
+      await user.click(screen.getByRole("button", { name: /^agregar$/i }));
+
+      await waitFor(() =>
+        expect(addItem).toHaveBeenCalledWith(41, { productId: 6, quantity: 1, note: undefined })
+      );
+      await waitFor(() => expect(search).toHaveValue(""));
+    });
+
+    it("shows a message and disables 'Agregar' when nothing matches", async () => {
+      const user = userEvent.setup();
+      render(<OrderBuilder orderId={41} />);
+      await user.type(await screen.findByLabelText(/buscar por nombre/i), "sushi");
+
+      expect(screen.getByText(/no hay productos que coincidan con «sushi»/i)).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /^agregar$/i })).toBeDisabled();
+    });
   });
 });

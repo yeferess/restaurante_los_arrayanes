@@ -280,3 +280,14 @@
   -webkit-tap-highlight-color: transparent;
   cursor: pointer;
 }
+
+.noMatches {
+  font-size: 0.9rem;
+  color: var(--muted);
+  padding: 0.5rem 0;
+}
+
+.secondaryButton:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

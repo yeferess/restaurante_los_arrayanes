@@ -12,13 +12,14 @@ vi.mock("@/lib/api/payments", () => ({
 vi.mock("@/lib/api/orders", () => ({
   chargeOrder: vi.fn(),
   getOrder: vi.fn(),
+  setAdminNote: vi.fn(),
 }));
 vi.mock("@/lib/api/ordersSocket", () => ({
   subscribeToOrderUpdates: vi.fn(),
 }));
 
 import { listAccounts, voidCharge, previewCharge, printReceipt } from "@/lib/api/payments";
-import { chargeOrder, getOrder } from "@/lib/api/orders";
+import { chargeOrder, getOrder, setAdminNote } from "@/lib/api/orders";
 import { subscribeToOrderUpdates } from "@/lib/api/ordersSocket";
 
 const ORDER = {
@@ -167,7 +168,7 @@ describe("ChargeOrderModal (005-cobro, RF-1/3/4)", () => {
     expect(screen.getByRole("button", { name: /^cobrar$/i })).toBeDisabled();
   });
 
-  it("shows the admin note read-only", async () => {
+  it("shows the admin note in an editable field (003 RF-17)", async () => {
     render(
       <ChargeOrderModal
         order={{ ...ORDER, admin_note: "mesa de cumpleanos" }}
@@ -175,7 +176,34 @@ describe("ChargeOrderModal (005-cobro, RF-1/3/4)", () => {
         onCharged={onCharged}
       />
     );
-    expect(await screen.findByText(/nota: mesa de cumpleanos/i)).toBeInTheDocument();
+    expect(await screen.findByLabelText(/nota del pedido/i)).toHaveValue("mesa de cumpleanos");
+  });
+
+  it("offers the note field even when the order has no note yet", async () => {
+    render(<ChargeOrderModal order={ORDER} onClose={onClose} onCharged={onCharged} />);
+    expect(await screen.findByLabelText(/nota del pedido/i)).toHaveValue("");
+  });
+
+  it("saves the note from the charge window", async () => {
+    vi.mocked(setAdminNote).mockReset();
+    vi.mocked(setAdminNote).mockResolvedValue({ ...ORDER, admin_note: "paga con tarjeta" });
+    const user = userEvent.setup();
+    render(<ChargeOrderModal order={ORDER} onClose={onClose} onCharged={onCharged} />);
+
+    await user.type(await screen.findByLabelText(/nota del pedido/i), "paga con tarjeta");
+    await user.click(screen.getByRole("button", { name: /guardar/i }));
+
+    expect(setAdminNote).toHaveBeenCalledWith(41, "paga con tarjeta");
+    expect(await screen.findByText(/nota guardada/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/nota del pedido/i)).toHaveValue("paga con tarjeta");
+  });
+
+  it("shows the latest note when the fresh copy of the order arrives", async () => {
+    vi.mocked(getOrder).mockResolvedValue({ ...ORDER, admin_note: "nota nueva" });
+    render(<ChargeOrderModal order={ORDER} onClose={onClose} onCharged={onCharged} />);
+    await waitFor(() =>
+      expect(screen.getByLabelText(/nota del pedido/i)).toHaveValue("nota nueva")
+    );
   });
 
   it("prints the customer receipt after charging (RF-11)", async () => {

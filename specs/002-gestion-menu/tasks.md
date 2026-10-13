@@ -268,3 +268,11 @@ condición verificable de "Hecho cuando".
   `GET /api/menu`, se suscribe a `menuSocket.ts` para refrescarse sola
   ante cambios, y tiene un botón "Actualizar menú" que dispara el mismo
   refetch manualmente.
+
+- [x] **T41 — Barra de búsqueda en los menús**
+  RF: RF-9
+  Hecho cuando: `lib/search.ts` compara sin mayúsculas ni tildes y
+  devuelve la posición a resaltar; `MenuSearchBar` + `useMenuSearch` en
+  `MenuMeseroView` y `ProductosManagement` resaltan, desplazan y cuentan
+  coincidencias. Tests en `search.test.ts`, `MenuMeseroView.test.tsx` y
+  `ProductosManagement.test.tsx`.

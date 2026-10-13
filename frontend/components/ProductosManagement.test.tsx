@@ -141,4 +141,25 @@ describe("ProductosManagement (T39, RF-2/3/4/5)", () => {
 
     await waitFor(() => expect(deleteProduct).toHaveBeenCalledWith(10));
   });
+
+  // 002 RF-9 — barra de búsqueda en el menú del admin.
+  it("highlights the product row that matches the search, ignoring case and accents", async () => {
+    Element.prototype.scrollIntoView = vi.fn();
+    vi.mocked(listProducts).mockResolvedValue([
+      PRODUCTS[0],
+      { id: 11, name: "Canción de la casa", category: { id: 2, name: "Postres" }, price: "20.00", is_available: true },
+    ]);
+    const user = userEvent.setup();
+    const { container } = render(<ProductosManagement />);
+    await screen.findByDisplayValue("Canción de la casa");
+
+    await user.type(screen.getByLabelText(/buscar en el menú/i), "cancion");
+
+    expect(container.querySelector("#admin-product-11")).toHaveAttribute("aria-current", "true");
+    expect(container.querySelector("#admin-product-10")).not.toHaveAttribute("aria-current");
+    expect(screen.getByText(/1 de 1 coincidencia$/i)).toBeInTheDocument();
+    expect(Element.prototype.scrollIntoView).toHaveBeenCalled();
+    // Nothing is hidden: the other product is still listed.
+    expect(screen.getByDisplayValue("Limonada")).toBeInTheDocument();
+  });
 });

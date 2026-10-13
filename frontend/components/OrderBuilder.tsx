@@ -15,6 +15,7 @@ import {
   type ApiErrorBody,
 } from "@/lib/api/orders";
 import { getMenu, type Product } from "@/lib/api/menu";
+import { matchesSearch } from "@/lib/search";
 import { formatPrice } from "@/lib/format";
 import styles from "./OrderBuilder.module.css";
 
@@ -53,6 +54,7 @@ export function OrderBuilder({ orderId }: { orderId: number }) {
 
   const [mode, setMode] = useState<"catalog" | "off-menu">("catalog");
   const [productId, setProductId] = useState("");
+  const [productSearch, setProductSearch] = useState("");
   const [offMenuName, setOffMenuName] = useState("");
   const [offMenuPrice, setOffMenuPrice] = useState("");
   const [quantity, setQuantity] = useState("1");
@@ -92,6 +94,18 @@ export function OrderBuilder({ orderId }: { orderId: number }) {
     };
   }, [orderId]);
 
+  // 003 RF-3: the search only narrows the list shown (by name, ignoring
+  // case and accents); the selected product is always one of those shown.
+  const visibleProducts = productSearch.trim()
+    ? products.filter((product) => matchesSearch(product.name, productSearch))
+    : products;
+  const selectedProductId = visibleProducts.some(
+    (product) => String(product.id) === productId
+  )
+    ? productId
+    : String(visibleProducts[0]?.id ?? "");
+  const noProductMatches = mode === "catalog" && visibleProducts.length === 0;
+
   async function handleAddItem(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setMessage(null);
@@ -99,7 +113,7 @@ export function OrderBuilder({ orderId }: { orderId: number }) {
       const item =
         mode === "catalog"
           ? await addItem(orderId, {
-              productId: Number(productId),
+              productId: Number(selectedProductId),
               quantity: Number(quantity),
               note: note || undefined,
             })
@@ -113,6 +127,7 @@ export function OrderBuilder({ orderId }: { orderId: number }) {
       setOffMenuPrice("");
       setQuantity("1");
       setNote("");
+      setProductSearch("");
       await refresh();
       if (item.print_warning) {
         setMessage(item.print_warning);
@@ -280,21 +295,39 @@ export function OrderBuilder({ orderId }: { orderId: number }) {
 
           {mode === "catalog" ? (
             <div className={styles.field}>
+              <label className={styles.label} htmlFor="product-search">
+                Buscar por nombre
+              </label>
+              <input
+                id="product-search"
+                className={styles.input}
+                type="search"
+                placeholder="Ej: bandeja"
+                autoComplete="off"
+                value={productSearch}
+                onChange={(event) => setProductSearch(event.target.value)}
+              />
               <label className={styles.label} htmlFor="product-select">
                 Producto
               </label>
-              <select
-                id="product-select"
-                className={styles.select}
-                value={productId}
-                onChange={(event) => setProductId(event.target.value)}
-              >
-                {products.map((product) => (
-                  <option key={product.id} value={product.id}>
-                    {product.name}
-                  </option>
-                ))}
-              </select>
+              {noProductMatches ? (
+                <p className={styles.noMatches} role="status">
+                  No hay productos que coincidan con «{productSearch.trim()}».
+                </p>
+              ) : (
+                <select
+                  id="product-select"
+                  className={styles.select}
+                  value={selectedProductId}
+                  onChange={(event) => setProductId(event.target.value)}
+                >
+                  {visibleProducts.map((product) => (
+                    <option key={product.id} value={product.id}>
+                      {product.name}
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
           ) : (
             <div className={styles.fieldRow}>
@@ -352,7 +385,11 @@ export function OrderBuilder({ orderId }: { orderId: number }) {
             </div>
           </div>
 
-          <button type="submit" className={styles.secondaryButton}>
+          <button
+            type="submit"
+            className={styles.secondaryButton}
+            disabled={noProductMatches}
+          >
             Agregar
           </button>
         </form>

@@ -12,6 +12,7 @@ import {
   type PaymentAccount,
 } from "@/lib/api/payments";
 import { formatPrice } from "@/lib/format";
+import { AdminNoteEditor } from "./AdminNoteEditor";
 import styles from "./ChargeOrderModal.module.css";
 
 const PREVIEW_DELAY_MS = 300;
@@ -238,9 +239,7 @@ export function ChargeOrderModal({
           <span className={styles.totalAmount}>${formatPrice(current.total)}</span>
         </div>
 
-        {current.admin_note && (
-          <p className={styles.adminNote}>Nota: {current.admin_note}</p>
-        )}
+        <AdminNoteEditor order={current} onSaved={setCurrent} />
 
         <div className={styles.field}>
           <label className={styles.label} htmlFor="charge-discount">

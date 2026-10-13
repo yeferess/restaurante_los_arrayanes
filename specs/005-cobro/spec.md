@@ -126,6 +126,9 @@ nunca se rompa ese invariante (ver RF-6).
   cálculo que el total que 003 ya expone en el detalle de un pedido.
 - Cada ítem del consolidado deberá mostrar su total de línea, calculado
   por el backend ([003 RF-3](../003-mesas-pedidos/spec.md)).
+- La ventana de cobro deberá mostrar la nota del admin del pedido en un
+  campo editable, aunque todavía no tenga nota
+  ([003 RF-17](../003-mesas-pedidos/spec.md)); nunca se imprime.
 - El sistema no deberá requerir un desglose adicional agrupado por
   "pedido original / adiciones / anulado" — el total consolidado y el
   listado de ítems ya existentes son suficientes.

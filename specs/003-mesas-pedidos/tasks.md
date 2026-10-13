@@ -664,3 +664,17 @@ condición verificable de "Hecho cuando".
   al reconectar o volver a la pestaña, llevar al login con la sesión
   expirada, y la ventana de cobro siempre al día) están en
   [005 RF-12 / T36](../005-cobro/tasks.md).
+
+- [x] **T95 — Buscador de productos al agregar ítems**
+  RF: RF-3
+  Hecho cuando: `OrderBuilder` tiene "Buscar por nombre" (con
+  `lib/search.ts`), filtra la lista, elige la primera coincidencia,
+  desactiva "Agregar" sin coincidencias y se limpia al agregar. Tests en
+  `OrderBuilder.test.tsx`.
+
+- [x] **T96 — Nota del admin editable al cobrar**
+  RF: RF-17
+  Hecho cuando: `ChargeOrderModal` usa `AdminNoteEditor` (siempre
+  visible, aunque no haya nota) y `AdminNoteEditor` toma la nota más
+  reciente cuando llega una copia nueva del pedido, salvo que el admin
+  la esté editando. Tests en `ChargeOrderModal.test.tsx`.

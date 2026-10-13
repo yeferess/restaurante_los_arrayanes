@@ -13,7 +13,8 @@ function formatError(error: unknown): string {
 }
 
 /** 003 RF-17: the admin's own note on an order — never shown to waiters,
- * never printed. Used in the incoming and charged orders panels. */
+ * never printed. Used in the incoming and charged orders panels and in
+ * the charge window (005 RF-4). */
 export function AdminNoteEditor({
   order,
   onSaved,
@@ -21,10 +22,18 @@ export function AdminNoteEditor({
   order: Order;
   onSaved?: (order: Order) => void;
 }) {
-  const [note, setNote] = useState(order.admin_note ?? "");
+  const savedNote = order.admin_note ?? "";
+  const [note, setNote] = useState(savedNote);
   const [status, setStatus] = useState<string | null>(null);
+  // A newer copy of the order (refetched list, charge window reload)
+  // brings the saved note along — unless the admin is mid-edit.
+  const [lastSavedNote, setLastSavedNote] = useState(savedNote);
+  if (savedNote !== lastSavedNote) {
+    setLastSavedNote(savedNote);
+    if (note.trim() === lastSavedNote) setNote(savedNote);
+  }
   const inputId = `admin-note-${order.id}`;
-  const changed = note.trim() !== (order.admin_note ?? "");
+  const changed = note.trim() !== savedNote;
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
