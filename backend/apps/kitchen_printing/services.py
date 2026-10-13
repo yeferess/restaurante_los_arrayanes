@@ -12,9 +12,19 @@ from django.utils import timezone
 from apps.kitchen_printing.adapters import PrinterFailureError, PrinterNotDetectedError
 from apps.kitchen_printing.factory import get_printer_adapter
 from apps.kitchen_printing.models import PrintJob
-from apps.kitchen_printing.rendering import build_reprint_text, build_ticket_text
+from apps.kitchen_printing.rendering import (
+    build_reprint_text,
+    build_ticket_text,
+    has_unprinted_changes,
+    pending_changes,
+)
 from apps.orders.models import Order, OrderAction
-from apps.orders.services import notify_orders_changed
+from apps.orders.services import (
+    exclude_pending_send,
+    notify_orders_changed,
+    pending_additions,
+    send_additions,
+)
 
 PRINTER_NOT_DETECTED_MESSAGE = "Impresora de cocina no detectada."
 PRINTER_FAILURE_MESSAGE = "Error al imprimir el ticket de cocina."
@@ -51,7 +61,9 @@ def _attempt_print(job, created):
 
     job.status = PrintJob.Status.PRINTED
     job.printed_at = timezone.now()
-    job.last_item_id = order.items.aggregate(Max("id"))["id__max"] or 0
+    job.last_item_id = (
+        exclude_pending_send(order.items).aggregate(Max("id"))["id__max"] or 0
+    )
     job.last_action_id = (
         OrderAction.objects.filter(
             order=order, action_type=OrderAction.ActionType.ITEM_VOIDED
@@ -83,32 +95,53 @@ def register_event_and_print(order, event_type):
     return print_warning
 
 
-def retry_print(order, waiter):
-    """RF-9, RF-10, RF-11: manual retry, exclusive to the order's own
-    waiter, blocked once the order is charged or voided."""
+def _ticket_type_for(order):
+    """RF-1: the header of a new ticket — PEDIDO NUEVO until something of
+    the order reached paper, then ADICION (with anything added) or
+    ANULACION (only voids). A ticket a failed attempt left pending keeps
+    its own header (RF-8)."""
+    ever_printed = (
+        order.print_jobs.filter(status=PrintJob.Status.PRINTED)
+        .exclude(ticket_type=PrintJob.TicketType.REPRINT)
+        .exists()
+    )
+    if not ever_printed:
+        return PrintJob.TicketType.NEW_ORDER
+    added_items, _ = pending_changes(order)
+    return PrintJob.TicketType.ADDITION if added_items else PrintJob.TicketType.VOID
+
+
+def print_order(order, waiter):
+    """RF-1, RF-9, RF-10, RF-11: "Imprimir pedido" — the only way a kitchen
+    ticket gets printed. Exclusive to the order's own waiter while it is
+    in progress. Sends the additions still pending first (one tap for
+    the kitchen), then prints in a single ticket everything that hasn't
+    reached paper yet — or retries the ticket a failed attempt left
+    pending."""
     if order.waiter_id != waiter.id:
         raise ValidationError(
-            "Solo el mesero dueño del pedido puede reintentar la impresión.",
+            "Solo el mesero dueño del pedido puede imprimirlo.",
             code="not_owner",
         )
-    if order.status in (Order.Status.CHARGED, Order.Status.VOIDED):
+    if order.status != Order.Status.IN_PROGRESS:
         raise ValidationError(
-            "Este pedido ya no admite reintentos de impresión.",
-            code="not_editable",
+            "Este pedido ya no se puede imprimir.", code="not_editable"
         )
 
-    job = order.print_jobs.filter(status=PrintJob.Status.PENDING).first()
-    if job is None:
+    if pending_additions(order).exists():
+        send_additions(order, waiter)
+    if not has_unprinted_changes(order):
         raise ValidationError(
-            "Este pedido no tiene ningún ticket pendiente de impresión.",
-            code="not_found",
+            "No hay nada nuevo para imprimir en este pedido.",
+            code="nothing_to_print",
         )
+    return register_event_and_print(order, _ticket_type_for(order))
 
-    with _print_lock:
-        print_warning = _attempt_print(job, created=False)
-    if print_warning is None:
-        notify_orders_changed()
-    return print_warning
+
+def retry_print(order, waiter):
+    """RF-10: the old "Reintentar" — kept as an alias so nothing calling
+    it breaks; "Imprimir pedido" covers the retry too."""
+    return print_order(order, waiter)
 
 
 def reprint_order(order, user):

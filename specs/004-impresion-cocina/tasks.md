@@ -335,3 +335,16 @@ una condición verificable de "Hecho cuando".
   Hecho cuando: `register_event_and_print` notifica al terminar el
   intento, y un test confirma que la notificación llega con el ticket
   ya en `PRINTED` (sin "No impreso" falso).
+
+- [x] **T42 — "Imprimir pedido" como paso aparte**
+  RF: RF-1, RF-8, RF-10
+  Hecho cuando: `print_order` + `POST /api/pedidos/{id}/imprimir` (y
+  `/reimprimir` como alias del reintento) envía las adiciones pendientes
+  e imprime un solo ticket con lo que falta en papel, con el encabezado
+  que corresponde; rechaza si no hay nada nuevo (409), a otro mesero
+  (403) y pedidos cerrados (409); crear, agregar y anular ya no imprimen;
+  `has_unprinted_changes` en la respuesta del mesero; `OrderBuilder`
+  muestra "Imprimir pedido" / "Todo impreso" y `MyOrdersList` "Sin
+  imprimir" e "Imprimir pedido" ("Reimprimir pedido" pasa a "Reimprimir
+  copia"). Tests en `test_crear_e_imprimir_aparte.py` y los tests de 004
+  actualizados.

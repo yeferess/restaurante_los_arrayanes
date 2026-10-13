@@ -82,6 +82,10 @@ class OrderItem(models.Model):
     is_voided = models.BooleanField(default=False)
     void_reason = models.TextField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    # RF-5: when the line reached the system (the admin, the total, the
+    # kitchen). Empty while still in a draft, or for an addition the
+    # waiter hasn't sent yet — that one stays private to the waiter.
+    sent_at = models.DateTimeField(null=True, blank=True)
 
     def __str__(self):
         return f"{self.quantity}x {self.name} (order {self.order_id})"

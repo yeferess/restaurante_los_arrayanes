@@ -16,7 +16,12 @@ from apps.kitchen_printing.services import (
     _print_lock,
 )
 from apps.orders.models import Order, OrderAction, Table
-from apps.orders.services import notify_orders_changed, register_action
+from apps.orders.services import (
+    exclude_pending_send,
+    notify_orders_changed,
+    pending_additions,
+    register_action,
+)
 from apps.payments.models import Payment, PaymentAccount
 from apps.payments.receipt import build_receipt_text
 
@@ -44,8 +49,13 @@ def create_account(name):
 
 
 def _active_items_total(order):
+    """Only what reached the system: an addition the waiter never sent
+    is not charged (003 RF-5)."""
     return sum(
-        (item.unit_price * item.quantity for item in order.items.all() if not item.is_voided),
+        (
+            item.unit_price * item.quantity
+            for item in exclude_pending_send(order.items.filter(is_voided=False))
+        ),
         Decimal("0.00"),
     )
 
@@ -148,6 +158,8 @@ def charge_order(
 
     order.status = Order.Status.CHARGED
     order.save(update_fields=["status"])
+    # 003 RF-5: additions never sent never existed for the system.
+    pending_additions(order).delete()
     table.status = Table.Status.PAID
     table.save(update_fields=["status"])
     register_action(order, OrderAction.ActionType.CHARGED, admin)

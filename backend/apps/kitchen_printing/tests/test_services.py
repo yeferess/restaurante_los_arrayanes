@@ -185,7 +185,10 @@ class RetryPrintTests(TestCase):
         self.other_waiter = User.objects.create_user(
             username="w18b", password="1234", role=User.Role.MESERO
         )
-        self.order = Order.objects.create(table_number=5, waiter=self.waiter)
+        # Printing ("Imprimir pedido", RF-1) applies to an order in progress.
+        self.order = Order.objects.create(
+            table_number=5, waiter=self.waiter, status=Order.Status.IN_PROGRESS
+        )
 
     def test_rejects_a_waiter_who_does_not_own_the_order(self):
         adapter = FakePrinterAdapter(fail_with=PrinterNotDetectedError)

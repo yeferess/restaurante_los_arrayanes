@@ -122,11 +122,17 @@ def _since_reference(order):
     return last_printed.last_item_id or 0, last_printed.last_action_id or 0
 
 
-def _pending_changes(order):
+def pending_changes(order):
+    """RF-8: what the next ticket would carry. Additions the waiter
+    hasn't sent yet never count (003 RF-5) — but "Imprimir pedido" sends
+    them right before printing."""
     from apps.orders.models import OrderAction
+    from apps.orders.services import exclude_pending_send
 
     last_item_id, last_action_id = _since_reference(order)
-    added_items = list(order.items.filter(is_voided=False, id__gt=last_item_id))
+    added_items = list(
+        exclude_pending_send(order.items.filter(is_voided=False, id__gt=last_item_id))
+    )
     void_actions = list(
         OrderAction.objects.filter(
             order=order,
@@ -143,11 +149,20 @@ def _pending_changes(order):
     return added_items, void_actions
 
 
+def has_unprinted_changes(order) -> bool:
+    """RF-10: something of the order still has to reach paper — a ticket
+    a failed attempt left pending, or sent changes never printed."""
+    if order.print_jobs.filter(status=PrintJob.Status.PENDING).exists():
+        return True
+    added_items, void_actions = pending_changes(order)
+    return bool(added_items or void_actions)
+
+
 def build_ticket_text(job: PrintJob) -> str:
     order = job.order
     lines = _build_header(order, TICKET_TYPE_LABELS[job.ticket_type])
 
-    added_items, void_actions = _pending_changes(order)
+    added_items, void_actions = pending_changes(order)
     show_section_labels = bool(added_items) and bool(void_actions)
 
     if added_items:
@@ -170,7 +185,9 @@ def build_reprint_text(order) -> str:
     """RF-12: the whole order as it stands now — every active item with
     its note underneath — under a REIMPRESION header, so the kitchen
     knows it is a copy and not new work."""
+    from apps.orders.services import exclude_pending_send
+
     lines = _build_header(order, TICKET_TYPE_LABELS[PrintJob.TicketType.REPRINT])
-    for item in order.items.filter(is_voided=False).order_by("id"):
+    for item in exclude_pending_send(order.items.filter(is_voided=False)).order_by("id"):
         lines.extend(format_item_with_note(item))
     return "\n".join(lines)

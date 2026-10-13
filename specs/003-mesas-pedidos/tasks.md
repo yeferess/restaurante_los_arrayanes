@@ -678,3 +678,15 @@ condición verificable de "Hecho cuando".
   visible, aunque no haya nota) y `AdminNoteEditor` toma la nota más
   reciente cuando llega una copia nueva del pedido, salvo que el admin
   la esté editando. Tests en `ChargeOrderModal.test.tsx`.
+
+- [x] **T97 — Crear el pedido y enviar adiciones sin imprimir**
+  RF: RF-5
+  Hecho cuando: `OrderItem.sent_at` (migración 0007 marca como enviados
+  los ítems de pedidos que ya no eran borrador); `send_order` no imprime;
+  `add_item` deja la adición sin enviar y sin avisar al admin;
+  `send_additions` + `POST /api/pedidos/{id}/enviar-adicion`; el admin,
+  el total, el cobro y las estadísticas ignoran lo no enviado; cobrar o
+  anular descarta lo no enviado; `OrderBuilder` muestra "Crear pedido",
+  "Sin enviar", "+ $X sin enviar" y "Enviar adición (N)"; `MyOrdersList`
+  marca "Adición sin enviar". Tests en `test_crear_e_imprimir_aparte.py`,
+  `OrderBuilder.test.tsx`, `MyOrdersList.test.tsx` y `orders.test.ts`.

@@ -291,3 +291,27 @@
   opacity: 0.5;
   cursor: default;
 }
+
+.itemPendingTag {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--accent-pressed);
+}
+
+.pendingTotal {
+  margin-top: 0.35rem;
+  text-align: right;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.kitchenActions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.primaryButton:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

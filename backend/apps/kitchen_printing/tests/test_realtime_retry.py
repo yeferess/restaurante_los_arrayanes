@@ -43,8 +43,9 @@ def _session_cookie_for(user):
 
 
 class RetryPrintRealtimeTests(TestCase):
-    """T26 — a successful retry notifies connected admins through the
-    existing real-time channel; a failed one doesn't (RF-10)."""
+    """T26 — every print attempt ("Imprimir pedido", RF-1) notifies
+    connected admins through the existing real-time channel, so the
+    "No impreso en cocina" mark appears or clears right away (RF-10)."""
 
     async def _connected_admin_communicator(self):
         admin = await _create_user(
@@ -67,8 +68,9 @@ class RetryPrintRealtimeTests(TestCase):
         await database_sync_to_async(services.add_item)(
             order, None, "Limonada", Decimal("4.50")
         )
+        await database_sync_to_async(services.send_order)(order)
         with _patched_adapter(FakePrinterAdapter(fail_with=PrinterNotDetectedError)):
-            await database_sync_to_async(services.send_order)(order)
+            await database_sync_to_async(kitchen_services.print_order)(order, waiter)
 
         communicator = await self._connected_admin_communicator()
 
@@ -79,20 +81,20 @@ class RetryPrintRealtimeTests(TestCase):
         self.assertEqual(response, {"type": "pedidos.actualizado"})
         await communicator.disconnect()
 
-    async def test_failed_retry_does_not_notify(self):
+    async def test_failed_attempt_notifies_so_the_admin_sees_it_pending(self):
         waiter = await _create_user("mesero_rt_print2", User.Role.MESERO)
         await database_sync_to_async(services.resize_tables)(1)
         order = await database_sync_to_async(services.create_order)(waiter, 1)
         await database_sync_to_async(services.add_item)(
             order, None, "Limonada", Decimal("4.50")
         )
-        with _patched_adapter(FakePrinterAdapter(fail_with=PrinterNotDetectedError)):
-            await database_sync_to_async(services.send_order)(order)
+        await database_sync_to_async(services.send_order)(order)
 
         communicator = await self._connected_admin_communicator()
 
         with _patched_adapter(FakePrinterAdapter(fail_with=PrinterNotDetectedError)):
-            await database_sync_to_async(kitchen_services.retry_print)(order, waiter)
+            await database_sync_to_async(kitchen_services.print_order)(order, waiter)
 
-        self.assertTrue(await communicator.receive_nothing(timeout=0.3))
+        response = await communicator.receive_json_from(timeout=1)
+        self.assertEqual(response, {"type": "pedidos.actualizado"})
         await communicator.disconnect()

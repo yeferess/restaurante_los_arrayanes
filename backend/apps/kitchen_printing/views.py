@@ -17,9 +17,10 @@ def _status_for(exc):
     return status.HTTP_409_CONFLICT
 
 
-class RetryPrintView(APIView):
-    """POST /api/pedidos/{id}/reimprimir (RF-9, RF-10, RF-11).
-    Owner-only."""
+class PrintOrderView(APIView):
+    """POST /api/pedidos/{id}/imprimir (RF-1, RF-9, RF-10, RF-11):
+    "Imprimir pedido". Owner-only. Also served at the old
+    /reimprimir path (the former "Reintentar")."""
 
     permission_classes = [IsMesero]
 
@@ -30,7 +31,7 @@ class RetryPrintView(APIView):
             return Response(status=status.HTTP_404_NOT_FOUND)
 
         try:
-            print_warning = services.retry_print(order, request.user)
+            print_warning = services.print_order(order, request.user)
         except DjangoValidationError as exc:
             return Response({"detail": exc.messages}, status=_status_for(exc))
 

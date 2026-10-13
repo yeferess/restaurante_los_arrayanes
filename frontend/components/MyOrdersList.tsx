@@ -7,7 +7,7 @@ import {
   listTables,
   setDelivered,
   releaseTable,
-  retryPrint,
+  printOrder,
   reprintOrder,
   deleteOrder,
   type Order,
@@ -126,16 +126,15 @@ export function MyOrdersList() {
     }
   }
 
-  async function handleRetryPrint(order: Order) {
+  /** 004 RF-1: "Imprimir pedido" — also the retry after a failure. */
+  async function handlePrint(order: Order) {
     setMessage(null);
     try {
-      const updated = await retryPrint(order.id);
+      const updated = await printOrder(order.id);
       setOrders((current) =>
         current.map((item) => (item.id === updated.id ? updated : item))
       );
-      if (updated.print_warning) {
-        setMessage(updated.print_warning);
-      }
+      setMessage(updated.print_warning ?? "Impreso en cocina.");
     } catch (error) {
       setMessage(formatError(error));
     }
@@ -203,6 +202,14 @@ export function MyOrdersList() {
                   No impreso en cocina
                 </span>
               )}
+              {(order.pending_additions_count ?? 0) > 0 && (
+                <span className={`${styles.badge} ${styles.badgePrintPending}`}>
+                  Adición sin enviar
+                </span>
+              )}
+              {order.has_unprinted_changes && !order.has_pending_print && (
+                <span className={styles.badge}>Sin imprimir</span>
+              )}
             </div>
             {order.draft_reminder && (
               <p className={styles.draftReminder} role="note">
@@ -235,24 +242,22 @@ export function MyOrdersList() {
                   Liberar mesa
                 </button>
               )}
-              {order.has_pending_print &&
-                order.status !== "CHARGED" &&
-                order.status !== "VOIDED" && (
-                  <button
-                    type="button"
-                    className={`${styles.actionButton} ${styles.actionButtonPrimary}`}
-                    onClick={() => handleRetryPrint(order)}
-                  >
-                    Reintentar impresión
-                  </button>
-                )}
+              {order.status === "IN_PROGRESS" && order.has_unprinted_changes && (
+                <button
+                  type="button"
+                  className={`${styles.actionButton} ${styles.actionButtonPrimary}`}
+                  onClick={() => handlePrint(order)}
+                >
+                  Imprimir pedido
+                </button>
+              )}
               {order.status === "IN_PROGRESS" && (
                 <button
                   type="button"
                   className={styles.actionButton}
                   onClick={() => handleReprint(order)}
                 >
-                  Reimprimir pedido
+                  Reimprimir copia
                 </button>
               )}
             </div>

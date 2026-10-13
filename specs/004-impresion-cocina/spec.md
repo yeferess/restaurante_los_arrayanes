@@ -58,25 +58,30 @@ sobre sus propios pedidos.
 
 ### RF-1 — Disparo de la impresión
 
-- Cuando un mesero envía un pedido en "borrador" (003 RF-5) — es decir,
-  cuando esa acción realmente cambia su estado a "en preparación" —, el
-  sistema deberá intentar imprimir un ticket "PEDIDO NUEVO".
-- Si un mesero reenvía un pedido que ya no está en "borrador" (003 RF-5
-  ya trata esto como un no-op sin efecto), el sistema no deberá intentar
-  imprimir nada: solo la transición real de borrador a en preparación
-  dispara un intento de impresión.
-- Cuando un mesero agrega una adición a un pedido ya "en preparación"
-  (003 RF-5), el sistema deberá intentar imprimir un ticket "ADICIÓN".
-- Cuando un mesero anula un ítem (003 RF-6) y el pedido sigue "en
-  preparación" después de esa anulación, el sistema deberá intentar
-  imprimir un ticket "ANULACIÓN".
-- Si anular un ítem resulta en la anulación automática del pedido
-  completo (porque era el último ítem activo, 003 RF-6/RF-11), entonces
-  el sistema no deberá imprimir ningún ticket para esa anulación.
+*(Actualizado 2026-10-13: antes cada envío, adición y anulación imprimía
+sola, y dos ítems agregados salían en dos tickets "ADICIÓN" separados.)*
+
+- El sistema solo deberá imprimir un ticket de cocina cuando el mesero
+  dueño toca "Imprimir pedido" en un pedido "en preparación". Ni crear
+  el pedido (003 RF-5), ni agregar o enviar una adición, ni anular un
+  ítem imprimen por sí solos: así el mesero decide qué va a cocina (lo
+  de vitrina o empaquetado no se imprime).
+- "Imprimir pedido" primero envía las adiciones que sigan sin enviar
+  (003 RF-5) y luego imprime, en un solo ticket, todo lo que todavía no
+  salió en papel (RF-8): lo agregado y lo anulado desde la última
+  impresión.
+- El encabezado del ticket es "PEDIDO NUEVO" mientras nada del pedido
+  haya salido en papel; después, "ADICIÓN" si hay algo agregado (con
+  "Agregado:"/"Anulado:" si también hay anulaciones) o "ANULACIÓN" si
+  solo hay anulaciones.
+- Si no hay nada nuevo para imprimir, el sistema deberá rechazar la
+  acción, y la pantalla lo muestra como "Todo impreso".
+- Un pedido que nunca se imprime (por ejemplo, solo de vitrina) no se
+  marca como "no impreso": esa marca es solo para un intento que falló
+  (RF-9, RF-10).
 - El sistema nunca deberá imprimir un ticket por anular un pedido
-  completo de forma manual (003 RF-11), ni por crear un borrador, cobrar,
-  liberar una mesa, corregir la mesa de un pedido, o marcar/desmarcar
-  "Entregado".
+  completo (003 RF-11), ni por crear un borrador, cobrar, liberar una
+  mesa, corregir la mesa de un pedido, o marcar/desmarcar "Entregado".
 - La impresión siempre la dispara el backend al procesar la acción,
   nunca el dispositivo del mesero — el resultado no depende de desde qué
   celular llegó la solicitud.
@@ -206,7 +211,8 @@ sobre sus propios pedidos.
   quede mostrando "no impreso" de un ticket que sí salió.
 - El sistema deberá permitir al mesero dueño del pedido reintentar la
   impresión de ese ticket pendiente, en cualquier momento, siempre que
-  el pedido no esté "cobrado" ni "anulado".
+  el pedido no esté "cobrado" ni "anulado". El reintento es el mismo
+  "Imprimir pedido" (RF-1).
 - Si el pedido ya está "cobrado" o "anulado" cuando se intenta
   reintentar, el sistema deberá rechazar la acción — igual de
   "congelado" que el resto de acciones sobre un pedido en esos estados

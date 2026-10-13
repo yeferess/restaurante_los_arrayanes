@@ -11,6 +11,8 @@ apareció mucho después") y separa las tres causas posibles:
 3. Un pedido en borrador no avisa ni imprime hasta que se envía.
 
 En todos los casos la cocina imprime sin depender de la sesión del admin.
+Desde 004 RF-1 la impresión la dispara el mesero con "Imprimir pedido"
+(crear el pedido y agregar ítems ya no imprimen solos).
 """
 
 from datetime import timedelta
@@ -29,6 +31,7 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.accounts.middleware import LAST_ACTIVITY_SESSION_KEY
+from apps.kitchen_printing import services as printing
 from apps.kitchen_printing.adapters import PrinterNotDetectedError
 from apps.kitchen_printing.fake_adapter import FakePrinterAdapter
 from apps.kitchen_printing.models import PrintJob
@@ -100,7 +103,14 @@ class AdminSessionExpiredScenarioTests(TestCase):
         order = services.create_order(waiter, table_number=table)
         services.add_item(order, name=name, price=Decimal(price))
         services.send_order(order)
+        printing.print_order(order, waiter)
         return order
+
+    def _add_and_print(self, order, name, price):
+        """El mesero agrega un ítem y toca "Imprimir pedido", que envía la
+        adición y la imprime (004 RF-1)."""
+        services.add_item(order, name=name, price=Decimal(price))
+        printing.print_order(order, order.waiter)
 
     async def _admin_socket(self, session_key=None):
         key = session_key or await sync_to_async(self._session_key)()
@@ -138,12 +148,8 @@ class AdminSessionExpiredScenarioTests(TestCase):
         await sync_to_async(self._expire_admin_session)()
 
         # Los dos meseros agregan ítems a sus pedidos.
-        await database_sync_to_async(services.add_item)(
-            order1, name="Jugo de mora", price=Decimal("6000")
-        )
-        await database_sync_to_async(services.add_item)(
-            order2, name="Churrasco", price=Decimal("32000")
-        )
+        await database_sync_to_async(self._add_and_print)(order1, "Jugo de mora", "6000")
+        await database_sync_to_async(self._add_and_print)(order2, "Churrasco", "32000")
 
         # El socket ya abierto sigue recibiendo los dos avisos...
         self.assertEqual(await communicator.receive_json_from(timeout=1), NOTIFICATION)
@@ -225,18 +231,22 @@ class AdminSessionExpiredScenarioTests(TestCase):
         self.assertEqual(response.data, [])
         self.assertEqual(self.printer.call_count, 0)
 
+        # "Crear pedido": el admin lo ve, pero todavía no se imprime.
         await database_sync_to_async(services.send_order)(draft)
         self.assertEqual(await communicator.receive_json_from(timeout=1), NOTIFICATION)
         response = await sync_to_async(self._incoming)()
         self.assertEqual([o["id"] for o in response.data], [draft.id])
+        self.assertEqual(self.printer.call_count, 0)
+
+        await database_sync_to_async(printing.print_order)(draft, self.mesero2)
         self.assertEqual(self.printer.call_count, 1)
         await communicator.disconnect()
 
     def test_two_waiters_at_once_each_get_their_own_number_and_ticket(self):
         order1 = self._sent_order(self.mesero1, 1, "Bandeja paisa", "25000")
         order2 = self._sent_order(self.mesero2, 2, "Limonada", "5000")
-        services.add_item(order1, name="Arepa", price=Decimal("3000"))
-        services.add_item(order2, name="Arepa", price=Decimal("3000"))
+        self._add_and_print(order1, "Arepa", "3000")
+        self._add_and_print(order2, "Arepa", "3000")
 
         order1.refresh_from_db()
         order2.refresh_from_db()

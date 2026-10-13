@@ -5,6 +5,7 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 from rest_framework.test import APIClient
 
+from apps.kitchen_printing import services as kitchen_services
 from apps.kitchen_printing.adapters import PrinterNotDetectedError
 from apps.kitchen_printing.fake_adapter import FakePrinterAdapter
 from apps.orders import services
@@ -33,9 +34,11 @@ class RetryPrintViewTests(TestCase):
             username="retry_w2", password="1234", role=User.Role.MESERO
         )
         self.order = services.create_order(self.waiter, table_number=1)
+        services.add_item(self.order, name="Limonada", price=Decimal("4.50"))
+        services.send_order(self.order)
+        # A first "Imprimir pedido" that failed leaves the ticket pending.
         with _patched_adapter(FakePrinterAdapter(fail_with=PrinterNotDetectedError)):
-            services.add_item(self.order, name="Limonada", price=Decimal("4.50"))
-            services.send_order(self.order)
+            kitchen_services.print_order(self.order, self.waiter)
 
     def test_owner_retries_successfully(self):
         self.client.force_authenticate(self.waiter)
@@ -63,12 +66,12 @@ class RetryPrintViewTests(TestCase):
         response = self.client.post("/api/pedidos/9999/reimprimir")
         self.assertEqual(response.status_code, 404)
 
-    def test_no_pending_ticket_gets_404(self):
+    def test_nothing_left_to_print_gets_409(self):
         self.client.force_authenticate(self.waiter)
         with _patched_adapter(FakePrinterAdapter()):
             self.client.post(f"/api/pedidos/{self.order.id}/reimprimir")
         response = self.client.post(f"/api/pedidos/{self.order.id}/reimprimir")
-        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.status_code, 409)
 
     def test_charged_order_gets_409(self):
         self.order.status = Order.Status.CHARGED

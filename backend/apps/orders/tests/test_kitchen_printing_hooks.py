@@ -11,8 +11,8 @@ User = get_user_model()
 
 
 class SendOrderPrintHookTests(TestCase):
-    """T19 — send_order() triggers kitchen printing on the real
-    draft -> in_progress transition only (RF-1)."""
+    """T19 — send_order() ("Crear pedido") never prints: printing is a
+    separate, explicit action (004 RF-1, "Imprimir pedido")."""
 
     def setUp(self):
         services.resize_tables(1)
@@ -23,10 +23,9 @@ class SendOrderPrintHookTests(TestCase):
         services.add_item(self.order, name="Limonada", price=Decimal("4.50"))
 
     @patch("apps.kitchen_printing.services.register_event_and_print")
-    def test_sending_a_draft_triggers_a_new_order_ticket(self, mock_register):
-        mock_register.return_value = None
+    def test_sending_a_draft_does_not_print(self, mock_register):
         services.send_order(self.order)
-        mock_register.assert_called_once_with(self.order, "NEW_ORDER")
+        mock_register.assert_not_called()
 
     @patch("apps.kitchen_printing.services.register_event_and_print")
     def test_resending_an_already_sent_order_does_not_trigger_printing(
@@ -40,8 +39,7 @@ class SendOrderPrintHookTests(TestCase):
 
 
 class AddItemPrintHookTests(TestCase):
-    """T20 — add_item() triggers printing only for the ADDITION branch
-    (RF-1)."""
+    """T20 — add_item() never prints, not even an addition (RF-1)."""
 
     def setUp(self):
         services.resize_tables(1)
@@ -56,20 +54,16 @@ class AddItemPrintHookTests(TestCase):
         mock_register.assert_not_called()
 
     @patch("apps.kitchen_printing.services.register_event_and_print")
-    def test_adding_an_item_after_sending_triggers_an_addition_ticket(
-        self, mock_register
-    ):
-        mock_register.return_value = None
+    def test_adding_an_item_after_sending_does_not_print(self, mock_register):
         services.add_item(self.order, name="Limonada", price=Decimal("4.50"))
         services.send_order(self.order)
-        mock_register.reset_mock()
         services.add_item(self.order, name="Jugo", price=Decimal("5.00"))
-        mock_register.assert_called_once_with(self.order, "ADDITION")
+        mock_register.assert_not_called()
 
 
 class VoidItemPrintHookTests(TestCase):
-    """T21 — void_item() triggers printing only when the order is still
-    in progress afterwards (RF-1)."""
+    """T21 — void_item() never prints: the void waits for the next
+    "Imprimir pedido" (RF-1)."""
 
     def setUp(self):
         services.resize_tables(1)
@@ -79,14 +73,12 @@ class VoidItemPrintHookTests(TestCase):
         self.order = services.create_order(self.waiter, table_number=1)
 
     @patch("apps.kitchen_printing.services.register_event_and_print")
-    def test_voiding_one_of_several_items_triggers_a_void_ticket(self, mock_register):
-        mock_register.return_value = None
+    def test_voiding_one_of_several_items_does_not_print(self, mock_register):
         item1 = services.add_item(self.order, name="Limonada", price=Decimal("4.50"))
         services.add_item(self.order, name="Jugo", price=Decimal("5.00"))
         services.send_order(self.order)
-        mock_register.reset_mock()
         services.void_item(self.order, item1, self.waiter, "cliente se arrepintio")
-        mock_register.assert_called_once_with(self.order, "VOID")
+        mock_register.assert_not_called()
 
     @patch("apps.kitchen_printing.services.register_event_and_print")
     def test_voiding_the_last_item_auto_voids_the_order_without_printing(

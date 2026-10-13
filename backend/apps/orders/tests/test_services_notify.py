@@ -40,11 +40,15 @@ class NotifyOrdersChangedTests(TestCase):
         mock_notify.assert_called_once()
 
     @patch("apps.orders.services.notify_orders_changed")
-    def test_adding_an_addition_notifies(self, mock_notify):
+    def test_adding_an_addition_does_not_notify_until_sent(self, mock_notify):
+        """RF-5: an unsent addition is the waiter's own; the admin hears
+        about it only when it is sent."""
         services.add_item(self.order, name="Limonada", price=Decimal("4.50"))
         services.send_order(self.order)
         mock_notify.reset_mock()
         services.add_item(self.order, name="Te", price=Decimal("3.00"))
+        mock_notify.assert_not_called()
+        services.send_additions(self.order, self.waiter)
         mock_notify.assert_called_once()
 
     @patch("apps.orders.services.notify_orders_changed")

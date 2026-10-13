@@ -49,15 +49,6 @@ def _assign_daily_number(order):
         order.sent_at = timezone.now()
 
 
-def _register_print_event(order, ticket_type):
-    """Hook into 004-impresion-cocina — imported lazily to avoid a
-    circular import (kitchen_printing.services itself imports from this
-    module)."""
-    from apps.kitchen_printing.services import register_event_and_print
-
-    return register_event_and_print(order, ticket_type)
-
-
 def notify_orders_changed():
     """RF-6 (plan, sección 4): notify the admin panel that an order
     changed. Call sites already match the scope decided in plan.md
@@ -172,11 +163,40 @@ def create_order(waiter, table_number):
     return order
 
 
+def is_pending_send(item):
+    """RF-5: an addition the waiter hasn't sent yet. Private to the
+    waiter: it never reaches the admin, the total, the charge, the stats
+    or the kitchen until sent."""
+    return item.line_type == OrderItem.LineType.ADDITION and item.sent_at is None
+
+
+def exclude_pending_send(items):
+    """Queryset form of `is_pending_send`: the lines that count."""
+    return items.exclude(line_type=OrderItem.LineType.ADDITION, sent_at__isnull=True)
+
+
+def pending_additions(order):
+    return order.items.filter(
+        line_type=OrderItem.LineType.ADDITION, sent_at__isnull=True
+    )
+
+
+def _discard_pending_additions(order):
+    """An order that closes (charged or voided) drops the additions that
+    were never sent — for the system they never existed (RF-5)."""
+    pending_additions(order).delete()
+
+
 def remove_item(order, item):
-    """RF-2: remove a line from a draft order — no reason, no trace."""
-    if order.status != Order.Status.DRAFT:
+    """RF-2, RF-5: remove a line that never reached the system — any
+    line of a draft, or an addition not sent yet. No reason, no trace."""
+    item.refresh_from_db(fields=["sent_at"])
+    if order.status != Order.Status.DRAFT and not (
+        order.status == Order.Status.IN_PROGRESS and is_pending_send(item)
+    ):
         raise ValidationError(
-            "Solo se pueden quitar ítems de un pedido en borrador.",
+            "Solo se pueden quitar ítems de un pedido en borrador o "
+            "adiciones sin enviar.",
             code="not_draft",
         )
     item.delete()
@@ -259,6 +279,8 @@ def add_item(
 
     `line_type` is inferred from the order's current status: `ORIGINAL`
     while still in "borrador" (draft), `ADDITION` once "en preparación".
+    An addition starts unsent: nobody else sees it and nothing prints
+    until the waiter sends it (send_additions) or prints (004 RF-1).
     """
     if order.status in (Order.Status.CHARGED, Order.Status.VOIDED):
         raise ValidationError(
@@ -301,10 +323,29 @@ def add_item(
         note=note or "",
         line_type=line_type,
     )
-    if line_type == OrderItem.LineType.ADDITION:
-        notify_orders_changed()
-        order.print_warning = _register_print_event(order, "ADDITION")
     return item
+
+
+def send_additions(order, waiter):
+    """RF-5: the waiter sends the additions still pending — from now on
+    the admin sees them and they count in the total. Never prints: that
+    is a separate, explicit action (004 RF-1)."""
+    if order.waiter_id != waiter.id:
+        raise ValidationError(
+            "Solo el mesero dueño del pedido puede enviar adiciones.",
+            code="not_owner",
+        )
+    if order.status != Order.Status.IN_PROGRESS:
+        raise ValidationError(
+            "Este pedido no admite enviar adiciones.", code="not_editable"
+        )
+    sent_count = pending_additions(order).update(sent_at=timezone.now())
+    if not sent_count:
+        raise ValidationError(
+            "Este pedido no tiene adiciones sin enviar.", code="nothing_pending"
+        )
+    notify_orders_changed()
+    return sent_count
 
 
 def update_item_note(item, note):
@@ -324,7 +365,9 @@ def update_item_note(item, note):
 
 
 def send_order(order):
-    """RF-5: draft -> in_progress. Resending an already-sent order is a
+    """RF-5: "Crear pedido" — draft -> in_progress. The admin sees it from
+    now on, but nothing prints: the waiter prints when (and if) the
+    kitchen needs it (004 RF-1). Resending an already-sent order is a
     silent no-op."""
     if order.status != Order.Status.DRAFT:
         return order
@@ -335,8 +378,8 @@ def send_order(order):
         order.status = Order.Status.IN_PROGRESS
         _assign_daily_number(order)
         order.save(update_fields=["status", "daily_number", "sent_at"])
+        order.items.update(sent_at=order.sent_at)
     notify_orders_changed()
-    order.print_warning = _register_print_event(order, "NEW_ORDER")
     return order
 
 
@@ -351,6 +394,14 @@ def void_item(order, item, waiter, reason):
         raise ValidationError(
             "Este pedido no admite anulación de ítems.", code="not_editable"
         )
+    # sent_at may have changed under this instance (send_additions
+    # updates in bulk): decide from the stored value.
+    item.refresh_from_db(fields=["sent_at"])
+    if is_pending_send(item):
+        raise ValidationError(
+            "Esta adición todavía no se envió: elimínala en vez de anularla.",
+            code="not_editable",
+        )
 
     item.is_voided = True
     item.void_reason = reason
@@ -359,6 +410,10 @@ def void_item(order, item, waiter, reason):
         order, OrderAction.ActionType.ITEM_VOIDED, waiter, reason=reason, item=item
     )
 
+    # The void is on screen right away; its ticket waits for the next
+    # "Imprimir pedido" (004 RF-1). An unsent addition still counts as
+    # an active line here: the waiter is about to send it, so the order
+    # is not auto-voided from under them.
     if not order.items.filter(is_voided=False).exists():
         order.status = Order.Status.VOIDED
         order.save(update_fields=["status"])
@@ -366,8 +421,6 @@ def void_item(order, item, waiter, reason):
         register_action(
             order, OrderAction.ActionType.ORDER_VOIDED_AUTO, waiter, reason=reason
         )
-    else:
-        order.print_warning = _register_print_event(order, "VOID")
 
     notify_orders_changed()
     return item
@@ -457,6 +510,7 @@ def void_order(order, admin, reason):
 
     order.status = Order.Status.VOIDED
     order.save(update_fields=["status"])
+    _discard_pending_additions(order)
     _free_table(order.table_number)
     register_action(order, OrderAction.ActionType.ORDER_VOIDED, admin, reason=reason)
     notify_orders_changed()

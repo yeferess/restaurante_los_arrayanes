@@ -9,6 +9,8 @@ vi.mock("@/lib/api/orders", () => ({
   voidItem: vi.fn(),
   removeItem: vi.fn(),
   sendOrder: vi.fn(),
+  sendAdditions: vi.fn(),
+  printOrder: vi.fn(),
   fixTable: vi.fn(),
   listTables: vi.fn(),
   deleteOrder: vi.fn(),
@@ -24,6 +26,8 @@ import {
   voidItem,
   removeItem,
   sendOrder,
+  sendAdditions,
+  printOrder,
   fixTable,
   listTables,
   deleteOrder,
@@ -79,6 +83,8 @@ describe("OrderBuilder (T66, RF-3/4/5/6/7)", () => {
     vi.mocked(voidItem).mockReset();
     vi.mocked(removeItem).mockReset();
     vi.mocked(sendOrder).mockReset();
+    vi.mocked(sendAdditions).mockReset();
+    vi.mocked(printOrder).mockReset();
     vi.mocked(fixTable).mockReset();
     vi.mocked(listTables).mockReset();
     vi.mocked(getMenu).mockReset();
@@ -97,7 +103,7 @@ describe("OrderBuilder (T66, RF-3/4/5/6/7)", () => {
 
   it("discards an empty draft when the mesero leaves the screen (RF-15)", async () => {
     const { unmount } = render(<OrderBuilder orderId={41} />);
-    await screen.findByRole("button", { name: /enviar pedido/i });
+    await screen.findByRole("button", { name: /crear pedido/i });
     unmount();
     expect(deleteOrder).toHaveBeenCalledWith(41);
   });
@@ -163,13 +169,13 @@ describe("OrderBuilder (T66, RF-3/4/5/6/7)", () => {
     expect(screen.queryByRole("button", { name: /^eliminar$/i })).not.toBeInTheDocument();
   });
 
-  it("shows the order and lets the mesero send it", async () => {
+  it("shows the order and lets the mesero create it ('Crear pedido')", async () => {
     vi.mocked(sendOrder).mockResolvedValue({ ...DRAFT_ORDER, status: "IN_PROGRESS" });
     const user = userEvent.setup();
     render(<OrderBuilder orderId={41} />);
 
-    expect(await screen.findByRole("button", { name: /enviar pedido/i })).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: /enviar pedido/i }));
+    expect(await screen.findByRole("button", { name: /crear pedido/i })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /crear pedido/i }));
 
     await waitFor(() => expect(sendOrder).toHaveBeenCalledWith(41));
   });
@@ -293,79 +299,133 @@ describe("OrderBuilder (T66, RF-3/4/5/6/7)", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows a print warning immediately when sending the order (T35, RF-9)", async () => {
-    vi.mocked(sendOrder).mockResolvedValue({
-      ...DRAFT_ORDER,
-      status: "IN_PROGRESS",
-      print_warning: "Impresora de cocina no detectada.",
-    });
-    const user = userEvent.setup();
-    render(<OrderBuilder orderId={41} />);
-    await user.click(await screen.findByRole("button", { name: /enviar pedido/i }));
-
-    expect(
-      await screen.findByText("Impresora de cocina no detectada.")
-    ).toBeInTheDocument();
-  });
-
-  it("shows a print warning immediately after adding an item", async () => {
-    vi.mocked(addItem).mockResolvedValue({
-      id: 200,
-      order_id: 41,
-      name: "Limonada",
-      unit_price: "4.50",
-      quantity: 1,
-      note: "",
-      line_type: "ORIGINAL",
-      is_voided: false,
-      void_reason: null,
-      line_total: "4.50",
-      print_warning: "Error al imprimir el ticket de cocina.",
-    });
-    const user = userEvent.setup();
-    render(<OrderBuilder orderId={41} />);
-    await screen.findByLabelText(/producto/i);
-
-    await user.click(screen.getByRole("button", { name: /^agregar$/i }));
-
-    expect(
-      await screen.findByText("Error al imprimir el ticket de cocina.")
-    ).toBeInTheDocument();
-  });
-
-  it("shows a print warning immediately after voiding an item", async () => {
-    vi.mocked(getOrder).mockResolvedValue(IN_PROGRESS_ORDER);
-    vi.mocked(voidItem).mockResolvedValue({
+  // 003 RF-5, 004 RF-1: crear y imprimir son pasos separados.
+  describe("create, send additions and print as separate steps", () => {
+    const UNSENT_ADDITION = {
       ...IN_PROGRESS_ORDER.items[0],
-      is_voided: true,
-      print_warning: "Impresora de cocina no detectada.",
+      id: 101,
+      name: "Jugo de mora",
+      unit_price: "6.00",
+      line_total: "6.00",
+      line_type: "ADDITION" as const,
+      pending_send: true,
+    };
+    const WITH_UNSENT = {
+      ...IN_PROGRESS_ORDER,
+      items: [IN_PROGRESS_ORDER.items[0], UNSENT_ADDITION],
+      total: "4.50",
+      pending_additions_count: 1,
+      pending_additions_total: "6.00",
+      has_unprinted_changes: true,
+    };
+
+    it("'Crear pedido' does not print and tells how to print", async () => {
+      vi.mocked(sendOrder).mockResolvedValue({
+        ...IN_PROGRESS_ORDER,
+        print_warning: null,
+        has_unprinted_changes: true,
+      });
+      const user = userEvent.setup();
+      render(<OrderBuilder orderId={41} />);
+      await user.click(await screen.findByRole("button", { name: /crear pedido/i }));
+
+      expect(await screen.findByText(/pedido creado/i)).toBeInTheDocument();
+      expect(printOrder).not.toHaveBeenCalled();
+      expect(screen.getByRole("button", { name: /^imprimir pedido$/i })).toBeEnabled();
     });
-    vi.spyOn(window, "prompt").mockReturnValue("El cliente cambió de opinión");
-    const user = userEvent.setup();
-    render(<OrderBuilder orderId={41} />);
 
-    expect(
-      await screen.findByText(/limonada/i, { selector: "span" })
-    ).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: /anular/i }));
-
-    expect(
-      await screen.findByText("Impresora de cocina no detectada.")
-    ).toBeInTheDocument();
-  });
-
-  it("shows no message when there is no print warning", async () => {
-    vi.mocked(sendOrder).mockResolvedValue({
-      ...DRAFT_ORDER,
-      status: "IN_PROGRESS",
-      print_warning: null,
+    it("offers no 'Imprimir pedido' while still a draft", async () => {
+      render(<OrderBuilder orderId={41} />);
+      await screen.findByRole("button", { name: /crear pedido/i });
+      expect(screen.queryByRole("button", { name: /imprimir pedido/i })).not.toBeInTheDocument();
     });
-    const user = userEvent.setup();
-    render(<OrderBuilder orderId={41} />);
-    await user.click(await screen.findByRole("button", { name: /enviar pedido/i }));
 
-    await waitFor(() => expect(sendOrder).toHaveBeenCalled());
-    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    it("prints and shows the confirmation", async () => {
+      vi.mocked(getOrder).mockResolvedValue({ ...IN_PROGRESS_ORDER, has_unprinted_changes: true });
+      vi.mocked(printOrder).mockResolvedValue({
+        ...IN_PROGRESS_ORDER,
+        has_unprinted_changes: false,
+        print_warning: null,
+      });
+      const user = userEvent.setup();
+      render(<OrderBuilder orderId={41} />);
+      await user.click(await screen.findByRole("button", { name: /^imprimir pedido$/i }));
+
+      expect(printOrder).toHaveBeenCalledWith(41);
+      expect(await screen.findByText("Impreso en cocina.")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /todo impreso/i })).toBeDisabled();
+    });
+
+    it("shows the printer warning when printing fails (RF-9)", async () => {
+      vi.mocked(getOrder).mockResolvedValue({ ...IN_PROGRESS_ORDER, has_unprinted_changes: true });
+      vi.mocked(printOrder).mockResolvedValue({
+        ...IN_PROGRESS_ORDER,
+        has_unprinted_changes: true,
+        has_pending_print: true,
+        print_warning: "Impresora de cocina no detectada.",
+      });
+      const user = userEvent.setup();
+      render(<OrderBuilder orderId={41} />);
+      await user.click(await screen.findByRole("button", { name: /^imprimir pedido$/i }));
+      expect(await screen.findByText("Impresora de cocina no detectada.")).toBeInTheDocument();
+    });
+
+    it("disables printing when everything is already on paper", async () => {
+      vi.mocked(getOrder).mockResolvedValue({ ...IN_PROGRESS_ORDER, has_unprinted_changes: false });
+      render(<OrderBuilder orderId={41} />);
+      expect(await screen.findByRole("button", { name: /todo impreso/i })).toBeDisabled();
+    });
+
+    it("tags an unsent addition, keeps it out of the total and lets it be removed", async () => {
+      vi.mocked(getOrder).mockResolvedValue(WITH_UNSENT);
+      render(<OrderBuilder orderId={41} />);
+      expect(await screen.findByText("Sin enviar")).toBeInTheDocument();
+      expect(screen.getByText(/\+ \$6,00 sin enviar/)).toBeInTheDocument();
+      expect(screen.getAllByRole("button", { name: /^eliminar$/i })).toHaveLength(1);
+      expect(screen.getAllByRole("button", { name: /^anular$/i })).toHaveLength(1);
+    });
+
+    it("sends the additions without printing", async () => {
+      vi.mocked(getOrder).mockResolvedValue(WITH_UNSENT);
+      vi.mocked(sendAdditions).mockResolvedValue({
+        ...WITH_UNSENT,
+        items: [IN_PROGRESS_ORDER.items[0], { ...UNSENT_ADDITION, pending_send: false }],
+        total: "10.50",
+        pending_additions_count: 0,
+        pending_additions_total: "0.00",
+      });
+      const user = userEvent.setup();
+      render(<OrderBuilder orderId={41} />);
+      await user.click(await screen.findByRole("button", { name: /enviar adición \(1\)/i }));
+
+      expect(sendAdditions).toHaveBeenCalledWith(41);
+      expect(printOrder).not.toHaveBeenCalled();
+      expect(await screen.findByText(/adición enviada/i)).toBeInTheDocument();
+      expect(screen.queryByText("Sin enviar")).not.toBeInTheDocument();
+    });
+
+    it("after adding to a created order, explains how it reaches the kitchen", async () => {
+      vi.mocked(getOrder).mockResolvedValue(IN_PROGRESS_ORDER);
+      vi.mocked(addItem).mockResolvedValue({ ...UNSENT_ADDITION, name: "Limonada" });
+      const user = userEvent.setup();
+      render(<OrderBuilder orderId={41} />);
+      await screen.findByLabelText(/^producto$/i);
+      await user.click(screen.getByRole("button", { name: /^agregar$/i }));
+      expect(await screen.findByText(/toca «enviar adición» o «imprimir pedido»/i)).toBeInTheDocument();
+    });
+
+    it("voiding does not print and reminds to print", async () => {
+      vi.mocked(getOrder).mockResolvedValue(IN_PROGRESS_ORDER);
+      vi.mocked(voidItem).mockResolvedValue({ ...IN_PROGRESS_ORDER.items[0], is_voided: true });
+      vi.spyOn(window, "prompt").mockReturnValue("El cliente cambió de opinión");
+      const user = userEvent.setup();
+      render(<OrderBuilder orderId={41} />);
+      await screen.findByText(/limonada/i, { selector: "span" });
+      await user.click(screen.getByRole("button", { name: /anular/i }));
+
+      expect(await screen.findByText(/ítem anulado/i)).toBeInTheDocument();
+      expect(printOrder).not.toHaveBeenCalled();
+    });
   });
 
   it("shows 'Entregado' instead of 'En preparación' once delivered is marked (T81, RF-8)", async () => {

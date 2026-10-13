@@ -6,6 +6,7 @@ from django.test import TestCase
 from rest_framework.test import APIClient
 
 from apps.kitchen_printing.adapters import PrinterNotDetectedError
+from apps.kitchen_printing import services as printing
 from apps.kitchen_printing.fake_adapter import FakePrinterAdapter
 from apps.orders import services
 
@@ -16,6 +17,13 @@ def _patched_adapter(adapter):
     return patch(
         "apps.kitchen_printing.services.get_printer_adapter", return_value=adapter
     )
+
+
+def _create_and_print(order):
+    """"Crear pedido" never prints (004 RF-1): the attempt is the
+    explicit "Imprimir pedido"."""
+    services.send_order(order)
+    printing.print_order(order, order.waiter)
 
 
 class HasPendingPrintTests(TestCase):
@@ -36,28 +44,28 @@ class HasPendingPrintTests(TestCase):
 
     def test_my_orders_reports_true_after_a_failed_print(self):
         with _patched_adapter(FakePrinterAdapter(fail_with=PrinterNotDetectedError)):
-            services.send_order(self.order)
+            _create_and_print(self.order)
         self.client.force_authenticate(self.waiter)
         response = self.client.get("/api/pedidos/mios")
         self.assertTrue(response.data[0]["has_pending_print"])
 
     def test_my_orders_reports_false_after_a_successful_print(self):
         with _patched_adapter(FakePrinterAdapter()):
-            services.send_order(self.order)
+            _create_and_print(self.order)
         self.client.force_authenticate(self.waiter)
         response = self.client.get("/api/pedidos/mios")
         self.assertFalse(response.data[0]["has_pending_print"])
 
     def test_incoming_orders_reports_true_after_a_failed_print(self):
         with _patched_adapter(FakePrinterAdapter(fail_with=PrinterNotDetectedError)):
-            services.send_order(self.order)
+            _create_and_print(self.order)
         self.client.force_authenticate(self.admin)
         response = self.client.get("/api/pedidos/entrantes")
         self.assertTrue(response.data[0]["has_pending_print"])
 
     def test_order_detail_reports_has_pending_print(self):
         with _patched_adapter(FakePrinterAdapter(fail_with=PrinterNotDetectedError)):
-            services.send_order(self.order)
+            _create_and_print(self.order)
         self.client.force_authenticate(self.waiter)
         response = self.client.get(f"/api/pedidos/{self.order.id}")
         self.assertTrue(response.data["has_pending_print"])

@@ -158,9 +158,26 @@ arman los pedidos), y respeta las reglas 4 y 5 de
 - Si un mesero intenta enviar un pedido que ya no está en "borrador"
   (ya está "en preparación", "cobrado" o "anulado"), entonces el sistema
   deberá ignorar la solicitud sin efecto y sin error.
+- *(Actualizado 2026-10-13.)* Enviar el pedido ("Crear pedido") lo deja
+  en el sistema —el admin lo ve— pero no imprime nada: la impresión es
+  un paso aparte, "Imprimir pedido"
+  ([004 RF-1](../004-impresion-cocina/spec.md)), porque hay ítems que no
+  van a cocina (vitrina, estantería, empaquetados).
 - Cuando un mesero agrega un ítem a un pedido que ya está "en
   preparación", el sistema deberá registrarlo como una adición, aplicando
   las mismas reglas de RF-3 y RF-4.
+- Una adición queda "sin enviar" hasta que el mesero la envía ("Enviar
+  adición") o imprime el pedido ("Imprimir pedido" la envía antes de
+  imprimir). Mientras está sin enviar:
+  - solo la ve el mesero dueño, marcada "Sin enviar"; el admin no la ve
+    en entrantes, en el detalle ni al cobrar;
+  - no cuenta en el total del pedido ni en las estadísticas (el mesero
+    la ve aparte, "+ $X sin enviar");
+  - se puede eliminar sin motivo, como un ítem de un borrador (RF-2); no
+    se anula;
+  - si el pedido se cobra o se anula, se descarta sin dejar rastro.
+- Enviar adiciones solo lo puede hacer el mesero dueño, en un pedido "en
+  preparación", y solo si hay alguna sin enviar; nunca imprime.
 - Si el pedido ya está "cobrado" o "anulado", entonces el sistema deberá
   rechazar cualquier adición de ítems.
 - La transición real de "borrador" a "en preparación" (no un reenvío sin

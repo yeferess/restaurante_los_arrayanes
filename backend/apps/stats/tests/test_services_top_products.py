@@ -67,6 +67,7 @@ class TopProductsTests(TestCase):
         item = order_services.add_item(order, product_id=product.id)
         order_services.send_order(order)
         order_services.add_item(order, product_id=product.id)
+        order_services.send_additions(order, self.waiter)
         self._freeze(order)
         order_services.void_item(order, item, self.waiter, "Se equivocó")
 
@@ -94,9 +95,23 @@ class TopProductsTests(TestCase):
         order_services.send_order(order)
         self._freeze(order)
         order_services.add_item(order, product_id=product.id)
+        order_services.send_additions(order, self.waiter)
 
         result = top_products(DAY, DAY)
         self.assertEqual(result, [{"product_name": "Te", "quantity": 1}])
+
+    def test_an_unsent_addition_does_not_count(self):
+        """003 RF-5: until the waiter sends it, it is not part of the order."""
+        product = Product.objects.create(
+            name="Tinto", category=self.category, price=Decimal("2000.00")
+        )
+        order = self._sent_order(1)
+        order_services.add_item(order, name="Cubiertos extra", price=Decimal("0.01"))
+        order_services.send_order(order)
+        self._freeze(order)
+        order_services.add_item(order, product_id=product.id)
+
+        self.assertEqual(top_products(DAY, DAY), [])
 
     def test_a_deleted_product_no_longer_counts(self):
         product = Product.objects.create(

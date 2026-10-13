@@ -20,7 +20,8 @@ import {
   chargeOrder,
   setAdminNote,
   voidOrder,
-  retryPrint,
+  printOrder,
+  sendAdditions,
 } from "./orders";
 
 describe("lib/api/orders (T62, RF-1 a RF-11)", () => {
@@ -355,27 +356,35 @@ describe("lib/api/orders (T62, RF-1 a RF-11)", () => {
     });
   });
 
-  it("retryPrint posts to /api/pedidos/{id}/reimprimir (T32, RF-10) and propagates a 409", async () => {
+  it("printOrder posts to /api/pedidos/{id}/imprimir (004 RF-1, RF-10) and propagates a 409", async () => {
     mockOk({
       id: 7,
       status: "IN_PROGRESS",
       has_pending_print: false,
+      has_unprinted_changes: false,
       print_warning: null,
     });
-    const result = await retryPrint(7);
+    const result = await printOrder(7);
     expect(global.fetch).toHaveBeenCalledWith(
-      expect.stringContaining("/api/pedidos/7/reimprimir"),
+      expect.stringContaining("/api/pedidos/7/imprimir"),
       expect.objectContaining({ method: "POST" })
     );
-    expect(result.has_pending_print).toBe(false);
+    expect(result.has_unprinted_changes).toBe(false);
 
-    mockError(
-      { detail: "Este pedido ya no admite reintentos de impresión." },
-      409
-    );
-    await expect(retryPrint(7)).rejects.toEqual({
-      detail: "Este pedido ya no admite reintentos de impresión.",
+    mockError({ detail: "No hay nada nuevo para imprimir en este pedido." }, 409);
+    await expect(printOrder(7)).rejects.toEqual({
+      detail: "No hay nada nuevo para imprimir en este pedido.",
     });
+  });
+
+  it("sendAdditions posts to /api/pedidos/{id}/enviar-adicion (003 RF-5)", async () => {
+    mockOk({ id: 7, status: "IN_PROGRESS", pending_additions_count: 0 });
+    const result = await sendAdditions(7);
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringContaining("/api/pedidos/7/enviar-adicion"),
+      expect.objectContaining({ method: "POST" })
+    );
+    expect(result.pending_additions_count).toBe(0);
   });
 
   it("sendOrder/addItem/voidItem responses carry print_warning through", async () => {

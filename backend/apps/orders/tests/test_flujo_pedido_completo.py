@@ -70,6 +70,12 @@ class OrderLifecycleFlowTests(APITestCase):
         )
         self.assertEqual(addition.status_code, status.HTTP_201_CREATED)
         self.assertEqual(addition.data["line_type"], "ADDITION")
+        self.assertTrue(addition.data["pending_send"])
+
+        # RF-5: enviar la adición (sin imprimir)
+        send_addition = self.client.post(f"/api/pedidos/{order_id}/enviar-adicion")
+        self.assertEqual(send_addition.status_code, status.HTTP_200_OK)
+        self.assertEqual(send_addition.data["pending_additions_count"], 0)
 
         # RF-6: anular el primer ítem, con motivo
         void_item = self.client.post(
@@ -119,6 +125,7 @@ class OrderLifecycleFlowTests(APITestCase):
         )
         self.assertEqual(charge.status_code, status.HTTP_200_OK)
         self.assertEqual(charge.data["status"], "CHARGED")
+        self.assertEqual(charge.data["total"], 6)
 
         # RF-10: cualquier mesero libera la mesa ya pagada
         self._login_mesero()

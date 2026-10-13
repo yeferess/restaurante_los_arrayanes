@@ -34,26 +34,24 @@ class FullConsolidationFlowTests(TestCase):
         order = services.create_order(waiter, table_number=1)
         services.add_item(order, name="Sancocho de gallina", price=Decimal("20.00"))
 
+        services.send_order(order)
         with _patched_adapter(FakePrinterAdapter(fail_with=PrinterNotDetectedError)):
-            services.send_order(order)
+            kitchen_services.print_order(order, waiter)
 
         self.assertEqual(PrintJob.objects.filter(order=order).count(), 1)
         job = PrintJob.objects.get(order=order)
         self.assertEqual(job.status, PrintJob.Status.PENDING)
         self.assertEqual(job.ticket_type, PrintJob.TicketType.NEW_ORDER)
 
-        with _patched_adapter(FakePrinterAdapter(fail_with=PrinterNotDetectedError)):
-            addition = services.add_item(
-                order, name="Jugo de naranja", price=Decimal("5.00")
-            )
+        addition = services.add_item(order, name="Jugo de naranja", price=Decimal("5.00"))
+        services.send_additions(order, waiter)
 
         # still the same single pending job — consolidated, not a 2nd one
         self.assertEqual(PrintJob.objects.filter(order=order).count(), 1)
         job.refresh_from_db()
         self.assertEqual(job.ticket_type, PrintJob.TicketType.NEW_ORDER)
 
-        with _patched_adapter(FakePrinterAdapter(fail_with=PrinterNotDetectedError)):
-            services.void_item(order, addition, waiter, "cliente ya no lo quiere")
+        services.void_item(order, addition, waiter, "cliente ya no lo quiere")
 
         # the voided addition never reached paper — omitted entirely
         text = build_ticket_text(job)
@@ -61,12 +59,17 @@ class FullConsolidationFlowTests(TestCase):
         self.assertNotIn("Jugo de naranja", text)
 
         with _patched_adapter(FakePrinterAdapter()):
-            warning = kitchen_services.retry_print(order, waiter)
+            warning = kitchen_services.print_order(order, waiter)
         self.assertIsNone(warning)
         job.refresh_from_db()
         self.assertEqual(job.status, PrintJob.Status.PRINTED)
 
         # the next event opens an independent, new PrintJob
+        services.add_item(order, name="Postre de la casa", price=Decimal("6.00"))
         with _patched_adapter(FakePrinterAdapter()):
-            services.add_item(order, name="Postre de la casa", price=Decimal("6.00"))
+            kitchen_services.print_order(order, waiter)
         self.assertEqual(PrintJob.objects.filter(order=order).count(), 2)
+        self.assertEqual(
+            PrintJob.objects.filter(order=order).order_by("-id").first().ticket_type,
+            PrintJob.TicketType.ADDITION,
+        )

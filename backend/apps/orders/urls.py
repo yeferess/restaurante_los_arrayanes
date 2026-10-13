@@ -15,6 +15,7 @@ from apps.orders.views import (
     ReleaseTableView,
     RemoveItemView,
     ResizeTablesView,
+    SendAdditionsView,
     SendOrderView,
     SetDeliveredView,
     TableListView,
@@ -54,6 +55,11 @@ urlpatterns = [
         name="orders-item-note",
     ),
     path("pedidos/<int:pk>/enviar", SendOrderView.as_view(), name="orders-send"),
+    path(
+        "pedidos/<int:pk>/enviar-adicion",
+        SendAdditionsView.as_view(),
+        name="orders-send-additions",
+    ),
     path("pedidos/<int:pk>/mesa", FixTableView.as_view(), name="orders-fix-table"),
     path(
         "pedidos/<int:pk>/entregado",

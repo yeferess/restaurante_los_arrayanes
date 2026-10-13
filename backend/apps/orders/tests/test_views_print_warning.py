@@ -19,8 +19,9 @@ def _patched_adapter(adapter):
 
 
 class PrintWarningInResponsesTests(TestCase):
-    """T23 — enviar/agregar ítem/anular ítem expose print_warning without
-    changing their usual success status code (RF-9)."""
+    """T23 — print_warning (RF-9). Only "Imprimir pedido" ever reaches the
+    printer (RF-1): crear/agregar/anular never carry a warning, even with
+    the printer down, and keep their usual success status code."""
 
     def setUp(self):
         self.client = APIClient()
@@ -31,50 +32,48 @@ class PrintWarningInResponsesTests(TestCase):
         self.client.force_authenticate(self.waiter)
         self.order = services.create_order(self.waiter, table_number=1)
 
-    def test_send_order_reports_a_print_warning_on_failure(self):
+    def test_creating_the_order_never_reports_a_print_warning(self):
         services.add_item(self.order, name="Limonada", price=Decimal("4.50"))
-        with _patched_adapter(FakePrinterAdapter(fail_with=PrinterNotDetectedError)):
-            response = self.client.post(f"/api/pedidos/{self.order.id}/enviar")
-        self.assertEqual(response.status_code, 200)
-        self.assertIsNotNone(response.data["print_warning"])
-
-    def test_send_order_reports_no_warning_on_success(self):
-        services.add_item(self.order, name="Limonada", price=Decimal("4.50"))
-        with _patched_adapter(FakePrinterAdapter()):
+        adapter = FakePrinterAdapter(fail_with=PrinterNotDetectedError)
+        with _patched_adapter(adapter):
             response = self.client.post(f"/api/pedidos/{self.order.id}/enviar")
         self.assertEqual(response.status_code, 200)
         self.assertIsNone(response.data["print_warning"])
+        self.assertEqual(adapter.printed_texts, [])
 
-    def test_add_item_reports_print_warning_only_once_sent(self):
-        with _patched_adapter(FakePrinterAdapter()):
-            response = self.client.post(
-                f"/api/pedidos/{self.order.id}/items",
-                {"name": "Limonada", "price": "4.50", "quantity": 1},
-            )
-        self.assertEqual(response.status_code, 201)
-        self.assertIsNone(response.data["print_warning"])
+    def test_adding_and_voiding_never_report_a_print_warning(self):
+        item1 = services.add_item(self.order, name="Limonada", price=Decimal("4.50"))
+        services.add_item(self.order, name="Jugo", price=Decimal("5.00"))
+        services.send_order(self.order)
 
         with _patched_adapter(FakePrinterAdapter(fail_with=PrinterNotDetectedError)):
-            self.client.post(f"/api/pedidos/{self.order.id}/enviar")
-            response = self.client.post(
+            added = self.client.post(
                 f"/api/pedidos/{self.order.id}/items",
-                {"name": "Jugo", "price": "5.00", "quantity": 1},
+                {"name": "Te", "price": "3.00", "quantity": 1},
             )
-        self.assertEqual(response.status_code, 201)
-        self.assertIsNotNone(response.data["print_warning"])
-
-    def test_void_item_reports_print_warning(self):
-        with _patched_adapter(FakePrinterAdapter()):
-            item1 = services.add_item(
-                self.order, name="Limonada", price=Decimal("4.50")
-            )
-            services.add_item(self.order, name="Jugo", price=Decimal("5.00"))
-            services.send_order(self.order)
-
-        with _patched_adapter(FakePrinterAdapter(fail_with=PrinterNotDetectedError)):
-            response = self.client.post(
+            voided = self.client.post(
                 f"/api/pedidos/{self.order.id}/items/{item1.id}/anular",
                 {"reason": "cliente se arrepintio"},
             )
+        self.assertEqual(added.status_code, 201)
+        self.assertIsNone(added.data["print_warning"])
+        self.assertEqual(voided.status_code, 200)
+        self.assertIsNone(voided.data["print_warning"])
+
+    def test_print_reports_the_warning_on_failure(self):
+        services.add_item(self.order, name="Limonada", price=Decimal("4.50"))
+        services.send_order(self.order)
+        with _patched_adapter(FakePrinterAdapter(fail_with=PrinterNotDetectedError)):
+            response = self.client.post(f"/api/pedidos/{self.order.id}/imprimir")
         self.assertEqual(response.status_code, 200)
         self.assertIsNotNone(response.data["print_warning"])
+        self.assertTrue(response.data["has_pending_print"])
+
+    def test_print_reports_no_warning_on_success(self):
+        services.add_item(self.order, name="Limonada", price=Decimal("4.50"))
+        services.send_order(self.order)
+        with _patched_adapter(FakePrinterAdapter()):
+            response = self.client.post(f"/api/pedidos/{self.order.id}/imprimir")
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(response.data["print_warning"])
+        self.assertFalse(response.data["has_unprinted_changes"])

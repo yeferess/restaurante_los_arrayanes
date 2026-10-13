@@ -315,8 +315,28 @@ class VoidItemView(APIView):
         return Response(data)
 
 
+class SendAdditionsView(APIView):
+    """POST /api/pedidos/{id}/enviar-adicion (RF-5). Owner-only: the
+    pending additions reach the admin and the total, without printing."""
+
+    permission_classes = [IsMesero]
+
+    def post(self, request, pk):
+        order, error = _get_own_order_or_error(request, pk)
+        if error:
+            return error
+        try:
+            services.send_additions(order, request.user)
+        except DjangoValidationError as exc:
+            return Response(
+                {"detail": exc.messages}, status=status.HTTP_409_CONFLICT
+            )
+        return Response(OrderSerializer(order).data)
+
+
 class SendOrderView(APIView):
-    """POST /api/pedidos/{id}/enviar (RF-5). Owner-only."""
+    """POST /api/pedidos/{id}/enviar (RF-5): "Crear pedido", without
+    printing (004 RF-1). Owner-only."""
 
     permission_classes = [IsMesero]
 

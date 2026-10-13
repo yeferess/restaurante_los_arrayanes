@@ -43,7 +43,8 @@ def _session_cookie_for(user):
 
 
 class FullFailureAndRetryFlowTests(TestCase):
-    """T30 — end-to-end: send with the printer failing -> has_pending_print
+    """T30 — end-to-end: create, then "Imprimir pedido" with the printer
+    failing -> has_pending_print
     true -> retry succeeds via the HTTP endpoint -> has_pending_print
     false and the admin panel is notified in real time (RF-1, RF-8,
     RF-9, RF-10)."""
@@ -59,9 +60,15 @@ class FullFailureAndRetryFlowTests(TestCase):
         client = APIClient()
         await database_sync_to_async(client.force_authenticate)(waiter)
 
+        created = await database_sync_to_async(client.post)(
+            f"/api/pedidos/{order.id}/enviar"
+        )
+        self.assertEqual(created.status_code, 200)
+        self.assertIsNone(created.data["print_warning"])
+
         with _patched_adapter(FakePrinterAdapter(fail_with=PrinterNotDetectedError)):
             response = await database_sync_to_async(client.post)(
-                f"/api/pedidos/{order.id}/enviar"
+                f"/api/pedidos/{order.id}/imprimir"
             )
         self.assertEqual(response.status_code, 200)
         self.assertIsNotNone(response.data["print_warning"])

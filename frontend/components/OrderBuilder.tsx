@@ -8,6 +8,8 @@ import {
   voidItem,
   removeItem,
   sendOrder,
+  sendAdditions,
+  printOrder,
   fixTable,
   listTables,
   type Order,
@@ -43,9 +45,10 @@ function formatError(error: unknown): string {
 }
 
 /** Mesero's order builder screen (T66 — RF-3, RF-4, RF-5, RF-6, RF-7):
- * add catalog/off-menu items with notes, send the draft, add
- * post-send additions, void an item with a reason, and correct the
- * order's table. */
+ * add catalog/off-menu items with notes, create the order (without
+ * printing), add post-send additions and send them, print to the
+ * kitchen as a separate step (004 RF-1), void an item with a reason,
+ * and correct the order's table. */
 export function OrderBuilder({ orderId }: { orderId: number }) {
   const [order, setOrder] = useState<Order | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
@@ -129,28 +132,53 @@ export function OrderBuilder({ orderId }: { orderId: number }) {
       setNote("");
       setProductSearch("");
       await refresh();
-      if (item.print_warning) {
-        setMessage(item.print_warning);
+      if (item.pending_send) {
+        setMessage(
+          "Agregado. Toca «Enviar adición» o «Imprimir pedido» para que llegue."
+        );
       }
     } catch (error) {
       setMessage(formatError(error));
     }
   }
 
+  /** RF-5: "Crear pedido" — the admin sees it; nothing prints. */
   async function handleSend() {
     setMessage(null);
     try {
       const updated = await sendOrder(orderId);
       setOrder(updated);
-      if (updated.print_warning) {
-        setMessage(updated.print_warning);
-      }
+      setMessage("Pedido creado. Toca «Imprimir pedido» si va a cocina.");
     } catch (error) {
       setMessage(formatError(error));
     }
   }
 
-  /** RF-2: in a draft a line is simply removed — no reason, no trace. */
+  /** RF-5: the pending additions reach the admin, without printing. */
+  async function handleSendAdditions() {
+    setMessage(null);
+    try {
+      setOrder(await sendAdditions(orderId));
+      setMessage("Adición enviada (sin imprimir).");
+    } catch (error) {
+      setMessage(formatError(error));
+    }
+  }
+
+  /** 004 RF-1: one ticket with everything not on paper yet. */
+  async function handlePrint() {
+    setMessage(null);
+    try {
+      const updated = await printOrder(orderId);
+      setOrder(updated);
+      setMessage(updated.print_warning ?? "Impreso en cocina.");
+    } catch (error) {
+      setMessage(formatError(error));
+    }
+  }
+
+  /** RF-2, RF-5: a line that never reached the system (a draft's, or an
+   * unsent addition) is simply removed — no reason, no trace. */
   async function handleRemoveItem(itemId: number) {
     setMessage(null);
     try {
@@ -166,11 +194,9 @@ export function OrderBuilder({ orderId }: { orderId: number }) {
     if (!reason) return;
     setMessage(null);
     try {
-      const item = await voidItem(orderId, itemId, reason);
+      await voidItem(orderId, itemId, reason);
       await refresh();
-      if (item.print_warning) {
-        setMessage(item.print_warning);
-      }
+      setMessage("Ítem anulado. Toca «Imprimir pedido» para avisar a cocina.");
     } catch (error) {
       setMessage(formatError(error));
     }
@@ -240,8 +266,11 @@ export function OrderBuilder({ orderId }: { orderId: number }) {
                   </span>
                   {item.note && <span className={styles.itemNote}>{item.note}</span>}
                   {item.is_voided && <span className={styles.itemVoidedTag}>Anulado</span>}
+                  {item.pending_send && (
+                    <span className={styles.itemPendingTag}>Sin enviar</span>
+                  )}
                 </div>
-                {order.status === "DRAFT" && (
+                {(order.status === "DRAFT" || item.pending_send) && (
                   <button
                     type="button"
                     className={styles.voidButton}
@@ -250,7 +279,7 @@ export function OrderBuilder({ orderId }: { orderId: number }) {
                     Eliminar
                   </button>
                 )}
-                {!item.is_voided && order.status === "IN_PROGRESS" && (
+                {!item.is_voided && !item.pending_send && order.status === "IN_PROGRESS" && (
                   <button
                     type="button"
                     className={styles.voidButton}
@@ -269,7 +298,34 @@ export function OrderBuilder({ orderId }: { orderId: number }) {
             <span className={styles.totalAmount}>${formatPrice(order.total)}</span>
           </div>
         )}
+        {(order.pending_additions_count ?? 0) > 0 && (
+          <p className={styles.pendingTotal}>
+            + ${formatPrice(order.pending_additions_total ?? "0")} sin enviar
+          </p>
+        )}
       </div>
+
+      {order.status === "IN_PROGRESS" && (
+        <div className={styles.kitchenActions}>
+          {(order.pending_additions_count ?? 0) > 0 && (
+            <button
+              type="button"
+              className={styles.secondaryButton}
+              onClick={handleSendAdditions}
+            >
+              Enviar adición ({order.pending_additions_count})
+            </button>
+          )}
+          <button
+            type="button"
+            className={styles.primaryButton}
+            onClick={handlePrint}
+            disabled={!order.has_unprinted_changes}
+          >
+            {order.has_unprinted_changes ? "Imprimir pedido" : "Todo impreso"}
+          </button>
+        </div>
+      )}
 
       {(order.status === "DRAFT" || order.status === "IN_PROGRESS") && (
         <form className={styles.card} onSubmit={handleAddItem}>
@@ -397,7 +453,7 @@ export function OrderBuilder({ orderId }: { orderId: number }) {
 
       {order.status === "DRAFT" && (
         <button type="button" className={styles.primaryButton} onClick={handleSend}>
-          Enviar pedido
+          Crear pedido
         </button>
       )}
 

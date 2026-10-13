@@ -8,7 +8,7 @@ vi.mock("@/lib/api/orders", () => ({
   listTables: vi.fn(),
   setDelivered: vi.fn(),
   releaseTable: vi.fn(),
-  retryPrint: vi.fn(),
+  printOrder: vi.fn(),
   reprintOrder: vi.fn(),
   deleteOrder: vi.fn(),
 }));
@@ -18,7 +18,7 @@ import {
   listTables,
   setDelivered,
   releaseTable,
-  retryPrint,
+  printOrder,
   reprintOrder,
   deleteOrder,
 } from "@/lib/api/orders";
@@ -67,6 +67,7 @@ const UNPRINTED_ORDER = {
   items: [],
   total: "15.00",
   has_pending_print: true,
+  has_unprinted_changes: true,
   active_payment: null,
   daily_number: 12,
   sent_at: "2026-03-10T21:00:00Z",
@@ -113,7 +114,7 @@ describe("MyOrdersList (T67, RF-8/10)", () => {
     vi.mocked(listMyOrders).mockReset();
     vi.mocked(setDelivered).mockReset();
     vi.mocked(releaseTable).mockReset();
-    vi.mocked(retryPrint).mockReset();
+    vi.mocked(printOrder).mockReset();
     vi.mocked(deleteOrder).mockReset();
     vi.mocked(listTables).mockReset();
     vi.mocked(listMyOrders).mockResolvedValue([DRAFT_ORDER, CHARGED_ORDER]);
@@ -289,7 +290,7 @@ describe("MyOrdersList (T67, RF-8/10)", () => {
     render(<MyOrdersList />);
     expect(await screen.findByText(/no impreso en cocina/i)).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: /reintentar impresión/i })
+      screen.getByRole("button", { name: /^imprimir pedido$/i })
     ).toBeInTheDocument();
   });
 
@@ -298,7 +299,7 @@ describe("MyOrdersList (T67, RF-8/10)", () => {
     await screen.findByText(/mesa 1/i);
     expect(screen.queryByText(/no impreso en cocina/i)).not.toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: /reintentar impresión/i })
+      screen.queryByRole("button", { name: /^imprimir pedido$/i })
     ).not.toBeInTheDocument();
   });
 
@@ -309,24 +310,25 @@ describe("MyOrdersList (T67, RF-8/10)", () => {
     render(<MyOrdersList />);
     await screen.findByText(/mesa 2/i);
     expect(
-      screen.queryByRole("button", { name: /reintentar impresión/i })
+      screen.queryByRole("button", { name: /^imprimir pedido$/i })
     ).not.toBeInTheDocument();
   });
 
   it("retries printing and refreshes the indicator", async () => {
     vi.mocked(listMyOrders).mockResolvedValue([UNPRINTED_ORDER]);
-    vi.mocked(retryPrint).mockResolvedValue({
+    vi.mocked(printOrder).mockResolvedValue({
       ...UNPRINTED_ORDER,
       has_pending_print: false,
+      has_unprinted_changes: false,
       print_warning: null,
     });
     const user = userEvent.setup();
     render(<MyOrdersList />);
     await screen.findByText(/no impreso en cocina/i);
 
-    await user.click(screen.getByRole("button", { name: /reintentar impresión/i }));
+    await user.click(screen.getByRole("button", { name: /^imprimir pedido$/i }));
 
-    await waitFor(() => expect(retryPrint).toHaveBeenCalledWith(43));
+    await waitFor(() => expect(printOrder).toHaveBeenCalledWith(43));
     await waitFor(() =>
       expect(screen.queryByText(/no impreso en cocina/i)).not.toBeInTheDocument()
     );
@@ -334,18 +336,45 @@ describe("MyOrdersList (T67, RF-8/10)", () => {
 
   it("shows the error when a retry fails again", async () => {
     vi.mocked(listMyOrders).mockResolvedValue([UNPRINTED_ORDER]);
-    vi.mocked(retryPrint).mockRejectedValue({
+    vi.mocked(printOrder).mockRejectedValue({
       detail: "Impresora de cocina no detectada.",
     });
     const user = userEvent.setup();
     render(<MyOrdersList />);
     await screen.findByText(/no impreso en cocina/i);
 
-    await user.click(screen.getByRole("button", { name: /reintentar impresión/i }));
+    await user.click(screen.getByRole("button", { name: /^imprimir pedido$/i }));
 
     expect(
       await screen.findByText("Impresora de cocina no detectada.")
     ).toBeInTheDocument();
+  });
+
+  // 003 RF-5, 004 RF-1: what is still missing, at a glance.
+  it("marks an order with unsent additions and one never printed", async () => {
+    vi.mocked(listMyOrders).mockResolvedValue([
+      {
+        ...DELIVERED_ORDER,
+        delivered: false,
+        pending_additions_count: 2,
+        has_unprinted_changes: true,
+      },
+    ]);
+    render(<MyOrdersList />);
+    expect(await screen.findByText("Adición sin enviar")).toBeInTheDocument();
+    expect(screen.getByText("Sin imprimir")).toBeInTheDocument();
+    expect(screen.queryByText(/no impreso en cocina/i)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^imprimir pedido$/i })).toBeInTheDocument();
+  });
+
+  it("offers no 'Imprimir pedido' once everything is on paper", async () => {
+    vi.mocked(listMyOrders).mockResolvedValue([
+      { ...DELIVERED_ORDER, has_unprinted_changes: false },
+    ]);
+    render(<MyOrdersList />);
+    await screen.findByText("Entregado");
+    expect(screen.queryByRole("button", { name: /^imprimir pedido$/i })).not.toBeInTheDocument();
+    expect(screen.queryByText("Sin imprimir")).not.toBeInTheDocument();
   });
 
   it("shows the total with a thousands separator", async () => {
@@ -383,11 +412,11 @@ describe("MyOrdersList (T67, RF-8/10)", () => {
     expect(screen.queryByText("Entregado")).not.toBeInTheDocument();
   });
 
-  it("offers 'Reimprimir pedido' only on an order in preparation (RF-12)", async () => {
+  it("offers 'Reimprimir copia' only on an order in preparation (RF-12)", async () => {
     vi.mocked(listMyOrders).mockResolvedValue([DRAFT_ORDER, UNPRINTED_ORDER, CHARGED_ORDER]);
     render(<MyOrdersList />);
     await screen.findAllByText(/mesa/i);
-    expect(screen.getAllByRole("button", { name: /reimprimir pedido/i })).toHaveLength(1);
+    expect(screen.getAllByRole("button", { name: /reimprimir copia/i })).toHaveLength(1);
   });
 
   it("reprints the order and confirms it", async () => {
@@ -395,7 +424,7 @@ describe("MyOrdersList (T67, RF-8/10)", () => {
     vi.mocked(listMyOrders).mockResolvedValue([UNPRINTED_ORDER]);
     vi.mocked(reprintOrder).mockResolvedValue({ ...UNPRINTED_ORDER, print_warning: null });
     render(<MyOrdersList />);
-    await user.click(await screen.findByRole("button", { name: /reimprimir pedido/i }));
+    await user.click(await screen.findByRole("button", { name: /reimprimir copia/i }));
     expect(reprintOrder).toHaveBeenCalledWith(UNPRINTED_ORDER.id);
     expect(await screen.findByText(/reimpreso en cocina/i)).toBeInTheDocument();
   });
@@ -408,7 +437,7 @@ describe("MyOrdersList (T67, RF-8/10)", () => {
       print_warning: "Impresora de cocina no detectada.",
     });
     render(<MyOrdersList />);
-    await user.click(await screen.findByRole("button", { name: /reimprimir pedido/i }));
+    await user.click(await screen.findByRole("button", { name: /reimprimir copia/i }));
     expect(await screen.findByText(/impresora de cocina no detectada/i)).toBeInTheDocument();
   });
 });

@@ -11,14 +11,19 @@ from django.db.models import Count, F, Q, Sum
 from django.db.models.functions import TruncDate
 
 from apps.orders.models import Order, OrderItem
+from apps.orders.services import exclude_pending_send
 from apps.payments.models import Payment
 
 
 def _order_total(order):
     """Same calculation as apps.orders.serializers.OrderSerializer.get_total
-    — the order's *current* total, never a historical snapshot (RF-6)."""
+    — the order's *current* total, never a historical snapshot (RF-6);
+    an addition the waiter hasn't sent yet doesn't count (003 RF-5)."""
     return sum(
-        (item.unit_price * item.quantity for item in order.items.all() if not item.is_voided),
+        (
+            item.unit_price * item.quantity
+            for item in exclude_pending_send(order.items.filter(is_voided=False))
+        ),
         Decimal("0.00"),
     )
 
@@ -98,10 +103,12 @@ def day_summary(date):
 
 def top_products(start, end):
     return list(
-        OrderItem.objects.filter(
-            order__sent_at__date__range=(start, end),
-            is_voided=False,
-            catalog_product__isnull=False,
+        exclude_pending_send(
+            OrderItem.objects.filter(
+                order__sent_at__date__range=(start, end),
+                is_voided=False,
+                catalog_product__isnull=False,
+            )
         )
         .exclude(order__status=Order.Status.VOIDED)
         .values(product_name=F("catalog_product__name"))

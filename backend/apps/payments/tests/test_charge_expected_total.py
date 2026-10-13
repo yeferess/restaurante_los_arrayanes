@@ -34,6 +34,7 @@ class ChargeExpectedTotalServiceTests(_OrderFixture, TestCase):
     def test_an_addition_after_opening_the_window_refuses_the_charge(self):
         # El admin vio 55.000; el mesero agrega un ítem antes de que cobre.
         order_services.add_item(self.order, name="Churrasco", price=Decimal("32000"))
+        order_services.send_additions(self.order, self.order.waiter)
         with self.assertRaises(ValidationError) as ctx:
             services.charge_order(
                 self.order, self.admin, self.account, expected_total="55000.00"
@@ -89,6 +90,7 @@ class ChargeExpectedTotalViewTests(_OrderFixture, APITestCase):
 
     def test_stale_total_returns_409_with_the_message(self):
         order_services.add_item(self.order, name="Churrasco", price=Decimal("32000"))
+        order_services.send_additions(self.order, self.order.waiter)
         response = self._charge("55000.00")
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
         self.assertIn("El pedido cambió", response.data["detail"][0])

@@ -310,3 +310,9 @@ una condición verificable de "Hecho cuando".
   `test_charge_expected_total.py`, `ChargeOrderModal.test.tsx`,
   `IncomingOrdersPanel.test.tsx`, `ordersSocket.test.ts` y
   `orders.test.ts`.
+
+- [x] **T37 — El cobro ignora las adiciones sin enviar**
+  RF: RF-4
+  Hecho cuando: `compute_charge` suma solo lo enviado y `charge_order`
+  descarta las adiciones sin enviar. Tests en
+  `test_crear_e_imprimir_aparte.py`.

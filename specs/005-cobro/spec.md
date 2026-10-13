@@ -124,6 +124,9 @@ nunca se rompa ese invariante (ver RF-6).
   total del pedido ya calculado — la suma de sus ítems activos
   (pedido original más adiciones, sin los ítems anulados), igual
   cálculo que el total que 003 ya expone en el detalle de un pedido.
+- Una adición que el mesero todavía no envió no aparece al cobrar ni se
+  cobra; si el pedido se cobra así, se descarta
+  ([003 RF-5](../003-mesas-pedidos/spec.md)).
 - Cada ítem del consolidado deberá mostrar su total de línea, calculado
   por el backend ([003 RF-3](../003-mesas-pedidos/spec.md)).
 - La ventana de cobro deberá mostrar la nota del admin del pedido en un

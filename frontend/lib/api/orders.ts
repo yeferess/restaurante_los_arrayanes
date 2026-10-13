@@ -26,6 +26,8 @@ export type OrderItem = {
   void_reason: string | null;
   /** 003 RF-3: quantity × unit price, computed by the backend. */
   line_total: string;
+  /** 003 RF-5: an addition the waiter hasn't sent yet (waiter-only). */
+  pending_send?: boolean;
   print_warning?: string | null;
 };
 
@@ -49,6 +51,12 @@ export type Order = {
   delivered: boolean;
   items: OrderItem[];
   total: string;
+  /** 003 RF-5: unsent additions, kept out of `total` (waiter-only). */
+  pending_additions_count?: number;
+  pending_additions_total?: string;
+  /** 004 RF-10: "Imprimir pedido" has something to print (waiter-only). */
+  has_unprinted_changes?: boolean;
+  /** 004 RF-9: a print attempt failed and is still pending. */
   has_pending_print: boolean;
   print_warning?: string | null;
   active_payment: ActivePayment | null;
@@ -163,8 +171,24 @@ export function updateItemNote(
   });
 }
 
+/** 003 RF-5: "Crear pedido" — into the system, without printing. */
 export function sendOrder(orderId: number): Promise<Order> {
   return requestJson<Order>(`/api/pedidos/${orderId}/enviar`, {
+    method: "POST",
+  });
+}
+
+/** 003 RF-5: the pending additions reach the admin, without printing. */
+export function sendAdditions(orderId: number): Promise<Order> {
+  return requestJson<Order>(`/api/pedidos/${orderId}/enviar-adicion`, {
+    method: "POST",
+  });
+}
+
+/** 004 RF-1: "Imprimir pedido" — sends pending additions, then prints
+ * everything not on paper yet in a single ticket. */
+export function printOrder(orderId: number): Promise<Order> {
+  return requestJson<Order>(`/api/pedidos/${orderId}/imprimir`, {
     method: "POST",
   });
 }
@@ -222,12 +246,6 @@ export function voidOrder(orderId: number, reason: string): Promise<Order> {
 /** RF-15: admin-only one-click discard of a draft (traced as a void). */
 export function discardDraft(orderId: number): Promise<Order> {
   return requestJson<Order>(`/api/pedidos/${orderId}/eliminar-borrador`, {
-    method: "POST",
-  });
-}
-
-export function retryPrint(orderId: number): Promise<Order> {
-  return requestJson<Order>(`/api/pedidos/${orderId}/reimprimir`, {
     method: "POST",
   });
 }

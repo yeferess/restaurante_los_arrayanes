@@ -62,6 +62,7 @@ class DayMovementTests(TestCase):
         order_services.send_order(order)
         Order.objects.filter(pk=order.pk).update(sent_at=_local(DAY))
         order_services.add_item(order, name="Postre", price=Decimal("3000.00"))
+        order_services.send_additions(order, self.waiter)
 
         movement = day_movement(DAY)
         self.assertEqual(movement["orders"][0]["total"], Decimal("8000.00"))
