@@ -13,6 +13,17 @@ vi.mock("@/lib/api/orders", () => ({
 vi.mock("@/lib/api/ordersSocket", () => ({
   subscribeToOrderUpdates: vi.fn(),
 }));
+const { replaceMock, router } = vi.hoisted(() => {
+  const replaceMock = vi.fn();
+  return { replaceMock, router: { replace: replaceMock } };
+});
+vi.mock("next/navigation", () => ({
+  // Stable like Next's own router, so `refresh` keeps its identity.
+  useRouter: () => router,
+}));
+vi.mock("@/lib/api/auth", () => ({
+  session: vi.fn(),
+}));
 vi.mock("./ChargeOrderModal", () => ({
   ChargeOrderModal: ({ order, onClose, onCharged }: any) => (
     <div data-testid="charge-modal">
@@ -33,6 +44,7 @@ import {
   reprintOrder,
 } from "@/lib/api/orders";
 import { subscribeToOrderUpdates } from "@/lib/api/ordersSocket";
+import { session } from "@/lib/api/auth";
 
 const ORDER_1 = {
   id: 41,
@@ -64,6 +76,9 @@ describe("IncomingOrdersPanel (T68, soporte RF-9/11)", () => {
     vi.mocked(listOccupiedTables).mockReset();
     vi.mocked(listOccupiedTables).mockResolvedValue([]);
     vi.mocked(subscribeToOrderUpdates).mockReturnValue({ close: closeMock });
+    replaceMock.mockReset();
+    vi.mocked(session).mockReset();
+    vi.mocked(session).mockResolvedValue({ id: 1, username: "admin", role: "ADMIN" } as never);
   });
 
   it("warns about tables occupied for too long (RF-15)", async () => {
@@ -235,5 +250,60 @@ describe("IncomingOrdersPanel (T68, soporte RF-9/11)", () => {
     await user.click(await screen.findByRole("button", { name: /^reimprimir$/i }));
     expect(reprintOrder).toHaveBeenCalledWith(ORDER_1.id);
     expect(await screen.findByText(/reimpreso en cocina/i)).toBeInTheDocument();
+  });
+
+  // T94 — escenario "PC sin uso, sesión del admin expirada".
+  it("sends the admin to log in when the session expired, instead of leaving an old list (T94)", async () => {
+    render(<IncomingOrdersPanel />);
+    await screen.findByText(/mesa 1/i);
+
+    const onOrdersChanged = vi.mocked(subscribeToOrderUpdates).mock.calls[0][0];
+    vi.mocked(listIncomingOrders).mockRejectedValue({
+      detail: "Sesión expirada por inactividad.",
+    });
+    vi.mocked(session).mockRejectedValue({
+      detail: "Las credenciales de autenticación no se proveyeron.",
+    });
+    onOrdersChanged();
+
+    await waitFor(() => expect(replaceMock).toHaveBeenCalledWith("/admin/login"));
+  });
+
+  it("keeps the list and shows the message on a network error (T94)", async () => {
+    render(<IncomingOrdersPanel />);
+    await screen.findByText(/mesa 1/i);
+
+    const onOrdersChanged = vi.mocked(subscribeToOrderUpdates).mock.calls[0][0];
+    vi.mocked(listIncomingOrders).mockRejectedValue(new TypeError("Failed to fetch"));
+    vi.mocked(session).mockRejectedValue(new TypeError("Failed to fetch"));
+    onOrdersChanged();
+
+    expect(await screen.findByText(/ocurrió un error inesperado/i)).toBeInTheDocument();
+    expect(screen.getByText(/mesa 1/i)).toBeInTheDocument();
+    expect(replaceMock).not.toHaveBeenCalled();
+  });
+
+  it("refetches when the admin comes back to the tab (T94)", async () => {
+    render(<IncomingOrdersPanel />);
+    await screen.findByText(/mesa 1/i);
+
+    vi.mocked(listIncomingOrders).mockResolvedValue([
+      ORDER_1,
+      { ...ORDER_1, id: 56, table_number: 2, waiter_username: "mesero2", daily_number: 10 },
+    ]);
+    document.dispatchEvent(new Event("visibilitychange"));
+
+    expect(await screen.findByText(/mesa 2/i)).toBeInTheDocument();
+    expect(screen.getByText(/mesero: mesero2/i)).toBeInTheDocument();
+  });
+
+  it("refetches when the network comes back (T94)", async () => {
+    render(<IncomingOrdersPanel />);
+    await screen.findByText(/mesa 1/i);
+
+    vi.mocked(listIncomingOrders).mockResolvedValue([{ ...ORDER_1, id: 57, table_number: 4 }]);
+    window.dispatchEvent(new Event("online"));
+
+    expect(await screen.findByText(/mesa 4/i)).toBeInTheDocument();
   });
 });

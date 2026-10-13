@@ -21,7 +21,8 @@ export type OrdersSocketHandle = {
 /** Subscribes to real-time order change notifications for the admin
  * panel (plan.md, sección 4). Calls `onOrdersChanged` every time the
  * backend broadcasts `pedidos.actualizado`; reconnects automatically
- * with exponential backoff if the connection drops — the manual
+ * with exponential backoff if the connection drops, and refetches once
+ * reconnected so nothing missed meanwhile stays hidden — the manual
  * "Actualizar" button in the admin panel never depends on this socket
  * being connected. */
 export function subscribeToOrderUpdates(
@@ -31,12 +32,17 @@ export function subscribeToOrderUpdates(
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   let backoffMs = INITIAL_BACKOFF_MS;
   let closedByCaller = false;
+  let hasConnectedBefore = false;
 
   function connect() {
     socket = new WebSocket(ordersWebSocketUrl());
 
     socket.onopen = () => {
       backoffMs = INITIAL_BACKOFF_MS;
+      // T94: changes broadcast while the socket was down were never
+      // received — ask for the list again on every reconnection.
+      if (hasConnectedBefore) onOrdersChanged();
+      hasConnectedBefore = true;
     };
 
     socket.onmessage = (event: MessageEvent) => {

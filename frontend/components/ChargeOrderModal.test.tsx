@@ -11,10 +11,15 @@ vi.mock("@/lib/api/payments", () => ({
 }));
 vi.mock("@/lib/api/orders", () => ({
   chargeOrder: vi.fn(),
+  getOrder: vi.fn(),
+}));
+vi.mock("@/lib/api/ordersSocket", () => ({
+  subscribeToOrderUpdates: vi.fn(),
 }));
 
 import { listAccounts, voidCharge, previewCharge, printReceipt } from "@/lib/api/payments";
-import { chargeOrder } from "@/lib/api/orders";
+import { chargeOrder, getOrder } from "@/lib/api/orders";
+import { subscribeToOrderUpdates } from "@/lib/api/ordersSocket";
 
 const ORDER = {
   id: 41,
@@ -54,6 +59,7 @@ const ACCOUNTS = [
 describe("ChargeOrderModal (005-cobro, RF-1/3/4)", () => {
   const onClose = vi.fn();
   const onCharged = vi.fn();
+  const closeSocket = vi.fn();
 
   beforeEach(() => {
     vi.mocked(listAccounts).mockReset();
@@ -64,6 +70,12 @@ describe("ChargeOrderModal (005-cobro, RF-1/3/4)", () => {
     onClose.mockReset();
     onCharged.mockReset();
     vi.mocked(listAccounts).mockResolvedValue(ACCOUNTS);
+    // By default the fresh copy never arrives, so each test sees its prop.
+    vi.mocked(getOrder).mockReset();
+    vi.mocked(getOrder).mockReturnValue(new Promise(() => {}));
+    closeSocket.mockReset();
+    vi.mocked(subscribeToOrderUpdates).mockReset();
+    vi.mocked(subscribeToOrderUpdates).mockReturnValue({ close: closeSocket });
   });
 
   it("shows the order total and the list of payment options", async () => {
@@ -131,10 +143,12 @@ describe("ChargeOrderModal (005-cobro, RF-1/3/4)", () => {
     await user.click(screen.getByRole("button", { name: /^cobrar$/i }));
 
     await waitFor(() =>
-      expect(chargeOrder).toHaveBeenCalledWith(41, 1, {
-        amount: 2,
-        reason: "cliente frecuente",
-      })
+      expect(chargeOrder).toHaveBeenCalledWith(
+        41,
+        1,
+        { amount: 2, reason: "cliente frecuente" },
+        "9.00"
+      )
     );
     expect(await screen.findByText(/descuento −\$2,00 \(cliente frecuente\)/i)).toBeInTheDocument();
   });
@@ -214,7 +228,7 @@ describe("ChargeOrderModal (005-cobro, RF-1/3/4)", () => {
     await user.selectOptions(screen.getByLabelText(/opción de pago/i), "2");
     await user.click(screen.getByRole("button", { name: /^cobrar$/i }));
 
-    await waitFor(() => expect(chargeOrder).toHaveBeenCalledWith(41, 2));
+    await waitFor(() => expect(chargeOrder).toHaveBeenCalledWith(41, 2, undefined, "9.00"));
     expect(await screen.findByText(/nequi #1234/i)).toBeInTheDocument();
     expect(onCharged).not.toHaveBeenCalled();
 
@@ -378,5 +392,61 @@ describe("ChargeOrderModal (005-cobro, RF-1/3/4)", () => {
 
     expect(onClose).toHaveBeenCalled();
     expect(chargeOrder).not.toHaveBeenCalled();
+  });
+
+  // 005 RF-12 / T94 — la ventana de cobrar nunca muestra una copia vieja.
+  it("re-fetches the order on open and shows an addition made meanwhile (RF-12)", async () => {
+    const withAddition = {
+      ...ORDER,
+      items: [
+        ...ORDER.items,
+        { ...ORDER.items[0], id: 2, name: "Churrasco", line_type: "ADDITION" as const, line_total: "32.00", quantity: 1, unit_price: "32.00" },
+      ],
+      total: "41.00",
+    };
+    vi.mocked(getOrder).mockResolvedValue(withAddition);
+    render(<ChargeOrderModal order={ORDER} onClose={onClose} onCharged={onCharged} />);
+
+    expect(await screen.findByText(/churrasco/i)).toBeInTheDocument();
+    expect(screen.getByText("$41,00")).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent(/el pedido cambió/i);
+    expect(getOrder).toHaveBeenCalledWith(41);
+  });
+
+  it("updates itself when an order change is notified while open (RF-12)", async () => {
+    render(<ChargeOrderModal order={ORDER} onClose={onClose} onCharged={onCharged} />);
+    await screen.findByRole("option", { name: "Efectivo" });
+    expect(screen.queryByText(/el pedido cambió/i)).not.toBeInTheDocument();
+
+    vi.mocked(getOrder).mockResolvedValue({ ...ORDER, total: "15.00" });
+    const onOrdersChanged = vi.mocked(subscribeToOrderUpdates).mock.calls[0][0];
+    onOrdersChanged();
+
+    expect(await screen.findByText("$15,00")).toBeInTheDocument();
+    expect(screen.getByText(/el pedido cambió/i)).toBeInTheDocument();
+  });
+
+  it("sends the total on screen and reloads when the backend says it changed (RF-12)", async () => {
+    vi.mocked(chargeOrder).mockRejectedValue({
+      detail: ["El pedido cambió mientras se cobraba (se agregaron o anularon ítems). Revisa los ítems y el total antes de cobrar."],
+    });
+    const user = userEvent.setup();
+    render(<ChargeOrderModal order={ORDER} onClose={onClose} onCharged={onCharged} />);
+    await screen.findByRole("option", { name: "Efectivo" });
+
+    vi.mocked(getOrder).mockResolvedValue({ ...ORDER, total: "41.00" });
+    await user.click(screen.getByRole("button", { name: /^cobrar$/i }));
+
+    expect(chargeOrder).toHaveBeenCalledWith(41, 1, undefined, "9.00");
+    expect(await screen.findByText(/cambió mientras se cobraba/i)).toBeInTheDocument();
+    expect(await screen.findByText("$41,00")).toBeInTheDocument();
+  });
+
+  it("closes the order subscription when the window closes", () => {
+    const { unmount } = render(
+      <ChargeOrderModal order={ORDER} onClose={onClose} onCharged={onCharged} />
+    );
+    unmount();
+    expect(closeSocket).toHaveBeenCalled();
   });
 });

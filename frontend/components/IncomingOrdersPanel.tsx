@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { session } from "@/lib/api/auth";
 import {
   listIncomingOrders,
   listOccupiedTables,
@@ -43,6 +45,7 @@ function formatSentAt(sentAt: string | null): string | null {
  * `/ws/pedidos/`, and offers a manual "Actualizar" button as backup —
  * both paths call the exact same refetch function. */
 export function IncomingOrdersPanel() {
+  const router = useRouter();
   const [orders, setOrders] = useState<Order[]>([]);
   const [message, setMessage] = useState<string | null>(null);
   const [chargingOrder, setChargingOrder] = useState<Order | null>(null);
@@ -56,6 +59,17 @@ export function IncomingOrdersPanel() {
       setMessage(null);
     } catch (error) {
       setMessage(formatError(error));
+      // T94: an expired session (the PC sat unused) must not leave an
+      // outdated list on screen — send the admin back to log in. A network
+      // error (no `detail`) keeps the list and the message instead.
+      try {
+        await session();
+      } catch (sessionError) {
+        if ((sessionError as ApiErrorBody)?.detail !== undefined) {
+          router.replace("/admin/login");
+          return;
+        }
+      }
     }
     // RF-15: the notice is secondary — a failure here never hides the list.
     try {
@@ -64,12 +78,23 @@ export function IncomingOrdersPanel() {
     } catch {
       setStaleTables(0);
     }
-  }, []);
+  }, [router]);
 
   useEffect(() => {
     refresh();
     const handle = subscribeToOrderUpdates(refresh);
-    return () => handle.close();
+    // T94: coming back to the tab or the network reconnecting refetches,
+    // in case a notification was missed meanwhile.
+    function handleVisible() {
+      if (document.visibilityState === "visible") refresh();
+    }
+    document.addEventListener("visibilitychange", handleVisible);
+    window.addEventListener("online", refresh);
+    return () => {
+      handle.close();
+      document.removeEventListener("visibilitychange", handleVisible);
+      window.removeEventListener("online", refresh);
+    };
   }, [refresh]);
 
   async function handleChargedSuccessfully() {

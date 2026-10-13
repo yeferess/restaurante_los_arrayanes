@@ -189,11 +189,15 @@ export function setDelivered(
 export function chargeOrder(
   orderId: number,
   accountId: number,
-  discount?: { amount: number; reason: string }
+  discount?: { amount: number; reason: string },
+  expectedTotal?: string
 ): Promise<Order> {
-  const body = discount
-    ? { account_id: accountId, discount: discount.amount, discount_reason: discount.reason }
-    : { account_id: accountId };
+  const body = {
+    account_id: accountId,
+    ...(discount ? { discount: discount.amount, discount_reason: discount.reason } : {}),
+    // 005 RF-12: the total on screen; the backend refuses if it changed.
+    ...(expectedTotal !== undefined ? { expected_total: expectedTotal } : {}),
+  };
   return requestJson<Order>(`/api/pedidos/${orderId}/cobrar`, {
     method: "POST",
     body: JSON.stringify(body),

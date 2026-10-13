@@ -309,6 +309,13 @@ describe("lib/api/orders (T62, RF-1 a RF-11)", () => {
     });
   });
 
+  it("chargeOrder sends the total on screen as expected_total (005 RF-12)", async () => {
+    mockOk({ id: 7, status: "CHARGED" });
+    await chargeOrder(7, 3, undefined, "41000.00");
+    const [, init] = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(JSON.parse(init.body)).toEqual({ account_id: 3, expected_total: "41000.00" });
+  });
+
   it("setAdminNote patches /api/pedidos/{id}/nota-admin (003 RF-17)", async () => {
     mockOk({ id: 7, admin_note: "cumpleanos" });
     await setAdminNote(7, "cumpleanos");

@@ -337,7 +337,8 @@ class SendOrderView(APIView):
 
 class ChargeOrderView(APIView):
     """POST /api/pedidos/{id}/cobrar (005-cobro, RF-1, RF-3, RF-5, RF-10).
-    Admin-only; `discount` (pesos) and `discount_reason` are optional."""
+    Admin-only; `discount` (pesos), `discount_reason` and
+    `expected_total` (RF-12: the total shown on screen) are optional."""
 
     permission_classes = [IsAdmin]
 
@@ -365,6 +366,7 @@ class ChargeOrderView(APIView):
                 account,
                 discount=request.data.get("discount"),
                 discount_reason=request.data.get("discount_reason", ""),
+                expected_total=request.data.get("expected_total"),
             )
         except DjangoValidationError as exc:
             return Response(

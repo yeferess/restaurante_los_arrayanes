@@ -150,3 +150,13 @@
   opacity: 0.6;
   cursor: not-allowed;
 }
+
+.changedNotice {
+  background: var(--status-danger-soft);
+  color: var(--status-danger);
+  border-radius: 0.6rem;
+  padding: 0.65rem 0.85rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+}

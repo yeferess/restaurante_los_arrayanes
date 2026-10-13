@@ -298,3 +298,15 @@ una condición verificable de "Hecho cuando".
   cobrado); botón "Imprimir comprobante" en la confirmación del cobro y
   en Cobrados. Tests en `test_discount_receipt.py`,
   `ChargeOrderModal.test.tsx` y `ChargedOrdersPanel.test.tsx`.
+
+- [x] **T36 — Cobrar siempre lo que se ve en pantalla**
+  RF: RF-12
+  Hecho cuando: `charge_order` acepta `expected_total` y lo rechaza con
+  `order_changed` (409) si el pedido cambió; `ChargeOrderModal` vuelve a
+  pedir el pedido al abrir y con cada aviso, avisa "El pedido cambió" y
+  envía el total en pantalla; `ordersSocket` vuelve a pedir la lista al
+  reconectar; `IncomingOrdersPanel` refresca al volver a la pestaña o a la
+  red y lleva al login si la sesión expiró. Tests en
+  `test_charge_expected_total.py`, `ChargeOrderModal.test.tsx`,
+  `IncomingOrdersPanel.test.tsx`, `ordersSocket.test.ts` y
+  `orders.test.ts`.

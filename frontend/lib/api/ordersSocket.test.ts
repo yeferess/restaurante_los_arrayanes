@@ -78,4 +78,27 @@ describe("lib/api/ordersSocket (T63, soporte RF-9/RF-11)", () => {
     await vi.runAllTimersAsync();
     expect(FakeWebSocket.instances).toHaveLength(1);
   });
+
+  // T94 — causa 2 del escenario "un pedido apareció mucho después": si el
+  // socket se cae (PC suspendido, Wi-Fi) y reconecta, los cambios ocurridos
+  // mientras estuvo desconectado no se piden; al reconectar se vuelve a
+  // pedir la lista.
+  it("asks for the list again after reconnecting, to catch missed changes (T94)", async () => {
+    const onOrdersChanged = vi.fn();
+    subscribeToOrderUpdates(onOrdersChanged);
+    FakeWebSocket.instances[0].onopen?.();
+
+    FakeWebSocket.instances[0].onclose?.();
+    await vi.runOnlyPendingTimersAsync();
+    FakeWebSocket.instances[1].onopen?.();
+
+    expect(onOrdersChanged).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not ask for the list on the first connection (T94)", () => {
+    const onOrdersChanged = vi.fn();
+    subscribeToOrderUpdates(onOrdersChanged);
+    FakeWebSocket.instances[0].onopen?.();
+    expect(onOrdersChanged).not.toHaveBeenCalled();
+  });
 });

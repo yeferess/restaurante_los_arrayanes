@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { chargeOrder, type Order, type ApiErrorBody } from "@/lib/api/orders";
+import { useCallback, useEffect, useState } from "react";
+import { chargeOrder, getOrder, type Order, type ApiErrorBody } from "@/lib/api/orders";
+import { subscribeToOrderUpdates } from "@/lib/api/ordersSocket";
 import {
   listAccounts,
   previewCharge,
@@ -37,15 +38,19 @@ function formatSentAt(sentAt: string | null): string | null {
   )}:${pad(date.getMinutes())}`;
 }
 
-/** The backend's preview for one specific discount input — only shown
- * while that input is still the current one. */
+/** The backend's preview for one specific discount input on one order
+ * total — only shown while both are still the current ones. */
 type PreviewState = { forDiscount: string; result: ChargePreview | null; error: string | null };
 
 /** Charge confirmation modal (005-cobro — RF-1, RF-3, RF-4, RF-10,
  * RF-11): shows the order's already-calculated lines and total, an
  * optional peso discount (the total to pay comes from the backend's
  * preview, never computed here), the payment option, and — once
- * charged — the customer receipt. */
+ * charged — the customer receipt.
+ *
+ * RF-12: the order shown is always re-fetched from the backend when the
+ * window opens and whenever an order changes, and the charge sends the
+ * total on screen so the backend refuses it if the order changed. */
 export function ChargeOrderModal({
   order,
   onClose,
@@ -62,9 +67,27 @@ export function ChargeOrderModal({
   const [preview, setPreview] = useState<PreviewState | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [charged, setCharged] = useState<Order | null>(null);
+  const [current, setCurrent] = useState<Order>(order);
 
   const hasDiscount = discount.trim() !== "" && Number(discount) !== 0;
-  const currentPreview = hasDiscount && preview?.forDiscount === discount ? preview : null;
+  const previewKey = `${discount}|${current.total}`;
+  const currentPreview = hasDiscount && preview?.forDiscount === previewKey ? preview : null;
+  const changedSinceOpened =
+    current.total !== order.total || current.items.length !== order.items.length;
+
+  const reload = useCallback(async () => {
+    try {
+      setCurrent(await getOrder(order.id));
+    } catch {
+      // Keep showing the last known copy; charging still checks the total.
+    }
+  }, [order.id]);
+
+  useEffect(() => {
+    reload();
+    const handle = subscribeToOrderUpdates(reload);
+    return () => handle.close();
+  }, [reload]);
 
   useEffect(() => {
     listAccounts()
@@ -78,28 +101,31 @@ export function ChargeOrderModal({
   useEffect(() => {
     if (!hasDiscount) return;
     const requested = discount;
+    const key = previewKey;
     const timer = setTimeout(() => {
       previewCharge(order.id, Number(requested))
-        .then((result) => setPreview({ forDiscount: requested, result, error: null }))
+        .then((result) => setPreview({ forDiscount: key, result, error: null }))
         .catch((error) =>
-          setPreview({ forDiscount: requested, result: null, error: formatError(error) })
+          setPreview({ forDiscount: key, result: null, error: formatError(error) })
         );
     }, PREVIEW_DELAY_MS);
     return () => clearTimeout(timer);
-  }, [discount, hasDiscount, order.id]);
+  }, [discount, hasDiscount, order.id, previewKey]);
 
   async function handleCharge() {
     setMessage(null);
     try {
-      const updated = hasDiscount
-        ? await chargeOrder(order.id, Number(accountId), {
-            amount: Number(discount),
-            reason: discountReason,
-          })
-        : await chargeOrder(order.id, Number(accountId));
+      const updated = await chargeOrder(
+        order.id,
+        Number(accountId),
+        hasDiscount ? { amount: Number(discount), reason: discountReason } : undefined,
+        current.total
+      );
       setCharged(updated);
     } catch (error) {
       setMessage(formatError(error));
+      // RF-12: if the order changed meanwhile, show its new items/total.
+      await reload();
     }
   }
 
@@ -183,14 +209,20 @@ export function ChargeOrderModal({
     <div className={styles.overlay}>
       <div className={styles.modal}>
         <h2 className={styles.heading}>
-          {orderTitle(order)} — Mesa {order.table_number}
+          {orderTitle(current)} — Mesa {current.table_number}
         </h2>
-        {formatSentAt(order.sent_at) && (
-          <p className={styles.sentAt}>Enviado {formatSentAt(order.sent_at)}</p>
+        {formatSentAt(current.sent_at) && (
+          <p className={styles.sentAt}>Enviado {formatSentAt(current.sent_at)}</p>
+        )}
+        {changedSinceOpened && (
+          <p className={styles.changedNotice} role="alert">
+            El pedido cambió: se actualizaron los ítems y el total. Revísalos antes
+            de cobrar.
+          </p>
         )}
 
         <ul className={styles.itemsList}>
-          {order.items
+          {current.items
             .filter((item) => !item.is_voided)
             .map((item) => (
               <li key={item.id} className={styles.itemLine}>
@@ -203,11 +235,11 @@ export function ChargeOrderModal({
         </ul>
         <div className={styles.totalRow}>
           <span>Total</span>
-          <span className={styles.totalAmount}>${formatPrice(order.total)}</span>
+          <span className={styles.totalAmount}>${formatPrice(current.total)}</span>
         </div>
 
-        {order.admin_note && (
-          <p className={styles.adminNote}>Nota: {order.admin_note}</p>
+        {current.admin_note && (
+          <p className={styles.adminNote}>Nota: {current.admin_note}</p>
         )}
 
         <div className={styles.field}>

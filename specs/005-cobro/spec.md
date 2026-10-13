@@ -250,6 +250,28 @@ nunca se rompa ese invariante (ver RF-6).
   mensaje de la impresión de cocina, sin guardar nada.
 - Endpoint: `POST /api/pedidos/{id}/comprobante`, exclusivo del admin.
 
+### RF-12 — Cobrar siempre lo que se ve en pantalla
+
+*(Agregado 2026-10-12, tras un cobro en el que la ventana no mostraba una
+adición ya impresa en cocina.)*
+
+- Al abrir la ventana de cobro, el sistema deberá pedir al backend la
+  versión actual del pedido, y deberá actualizarla cada vez que el backend
+  avise un cambio de pedidos mientras la ventana está abierta. Si los
+  ítems o el total cambiaron respecto de la lista, la ventana lo avisa.
+- Al cobrar, el frontend deberá enviar el total que el admin está viendo
+  (`expected_total`). Si no coincide con el total actual de los ítems
+  activos, el sistema deberá rechazar el cobro (409, "El pedido cambió…"),
+  no guardar nada y volver a mostrar el pedido actualizado. Así el monto
+  guardado nunca difiere del que el admin vio y cobró.
+- `expected_total` es opcional para la API; sin él, el cobro funciona como
+  antes.
+- El panel de pedidos entrantes deberá volver a pedir la lista al
+  reconectarse el canal en tiempo real, al volver a la pestaña y al
+  recuperar la red; y si la sesión del admin expiró por inactividad
+  ([001 RF-8](../001-autenticacion-usuarios/spec.md)), deberá llevarlo a
+  iniciar sesión en vez de dejar una lista desactualizada en pantalla.
+
 ## Casos límite
 
 - El admin intenta cobrar un pedido que todavía está en "borrador" →

@@ -21,6 +21,10 @@ from apps.payments.models import Payment, PaymentAccount
 from apps.payments.receipt import build_receipt_text
 
 DISCOUNT_REASON_MAX_LENGTH = 200
+ORDER_CHANGED_MESSAGE = (
+    "El pedido cambió mientras se cobraba (se agregaron o anularon ítems). "
+    "Revisa los ítems y el total antes de cobrar."
+)
 
 
 def create_account(name):
@@ -56,6 +60,22 @@ def _parse_discount(raw):
     if not discount.is_finite():
         raise ValidationError("El descuento debe ser un valor numérico.", code="invalid")
     return discount
+
+
+def _ensure_expected_total(subtotal, raw_expected):
+    """RF-12: the admin charges exactly the total they saw on screen. If
+    the order changed since (a waiter added or voided an item), refuse
+    instead of storing an amount different from what was shown."""
+    if raw_expected in (None, ""):
+        return
+    try:
+        expected = Decimal(str(raw_expected))
+    except (InvalidOperation, ValueError):
+        raise ValidationError("El total esperado debe ser numérico.", code="invalid")
+    if not expected.is_finite():
+        raise ValidationError("El total esperado debe ser numérico.", code="invalid")
+    if expected != subtotal:
+        raise ValidationError(ORDER_CHANGED_MESSAGE, code="order_changed")
 
 
 def _ensure_chargeable(order):
@@ -94,14 +114,20 @@ def preview_charge(order, raw_discount=None):
     return compute_charge(order, raw_discount)
 
 
-def charge_order(order, admin, account, discount=None, discount_reason=""):
+def charge_order(
+    order, admin, account, discount=None, discount_reason="", expected_total=None
+):
     """RF-1, RF-3, RF-4, RF-5, RF-10: charge the order of an occupied
     table with the chosen payment option and an optional peso discount.
     The DB's own `unique_active_payment_per_order` constraint
     (apps.payments.models) rejects a concurrent double-charge instead of
-    an application-level lock (plan.md, sección 4)."""
+    an application-level lock (plan.md, sección 4).
+
+    `expected_total` (RF-12) is the order total the admin was looking at;
+    when given and stale, the charge is refused with `order_changed`."""
     table = _ensure_chargeable(order)
     amounts = compute_charge(order, discount)
+    _ensure_expected_total(amounts["subtotal"], expected_total)
     reason = (discount_reason or "").strip()[:DISCOUNT_REASON_MAX_LENGTH]
     if amounts["discount"] == 0:
         reason = ""

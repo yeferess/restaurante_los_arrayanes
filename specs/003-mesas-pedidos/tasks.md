@@ -653,3 +653,14 @@ condición verificable de "Hecho cuando".
   caracteres, 403 mesero, 404); `AdminOrderSerializer` la incluye solo
   en las vistas de admin; `AdminNoteEditor` en Entrantes y Cobrados.
   Tests en `test_admin_note_line_total.py` y `AdminNoteEditor.test.tsx`.
+
+- [x] **T94 — Test del escenario "PC sin uso, sesión del admin expirada"**
+  RF: RF-9, RF-11 (y [001 RF-8](../001-autenticacion-usuarios/spec.md))
+  Hecho cuando: `test_flujo_sesion_admin_expirada.py` cubre el flujo
+  completo (dos meseros, sesión expirada a los 31 min, socket abierto que
+  sigue avisando, lista en 401, cocina imprimiendo igual, todo visible al
+  volver a entrar), el borrador que no avisa hasta enviarse, dos meseros a
+  la vez y la impresora caída. Las correcciones (volver a pedir la lista
+  al reconectar o volver a la pestaña, llevar al login con la sesión
+  expirada, y la ventana de cobro siempre al día) están en
+  [005 RF-12 / T36](../005-cobro/tasks.md).
