@@ -26,7 +26,7 @@ SECRET_KEY = "django-insecure-tgvuod=z-+ejs20n&_wnjbjyk&&99=j)tl038(x%kvqy_3jqrv
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ["localhost", "127.0.0.1", "192.168.18.46"]
+ALLOWED_HOSTS = ["localhost", "127.0.0.1", "192.168.18.32"]
 
 
 # Application definition
@@ -193,7 +193,7 @@ KITCHEN_PRINTER_FEED_LINES = 6
 
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
-    "http://192.168.18.46:3000",
+    "http://192.168.18.32:3000",
 ]
 
 CORS_ALLOW_CREDENTIALS = True
@@ -205,9 +205,9 @@ CORS_ALLOW_CREDENTIALS = True
 
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost:3000",
-    "http://192.168.18.46:3000",
+    "http://192.168.18.32:3000",
     # Caddy's single HTTPS origin (006: HTTPS/PWA installability) —
     # frontend and backend now share this origin, so this is the one
     # the browser actually sends on form/API submissions from there.
-    "https://192.168.18.46",
+    "https://192.168.18.32",
 ]
