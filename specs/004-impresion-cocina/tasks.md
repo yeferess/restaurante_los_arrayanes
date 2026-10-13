@@ -348,3 +348,9 @@ una condición verificable de "Hecho cuando".
   imprimir" e "Imprimir pedido" ("Reimprimir pedido" pasa a "Reimprimir
   copia"). Tests en `test_crear_e_imprimir_aparte.py` y los tests de 004
   actualizados.
+
+- [x] **T43 — Encabezado "MOSTRADOR"**
+  RF: RF-2
+  Hecho cuando: el encabezado usa `table_label` y un pedido sin mesa
+  imprime "PEDIDO NUEVO - MOSTRADOR". Tests en
+  `test_pedido_admin_mostrador.py`.

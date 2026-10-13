@@ -121,6 +121,16 @@ describe("lib/api/orders (T62, RF-1 a RF-11)", () => {
     });
   });
 
+  it("createOrder(null) posts an empty body for a counter order (003 RF-18)", async () => {
+    mockOk({ id: 2, table_number: null, status: "DRAFT" }, 201);
+    const result = await createOrder(null);
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringContaining("/api/pedidos"),
+      expect.objectContaining({ method: "POST", body: JSON.stringify({}) })
+    );
+    expect(result.table_number).toBeNull();
+  });
+
   it("createOrder sends the csrftoken cookie as an X-CSRFToken header", async () => {
     document.cookie = "csrftoken=abc123";
     mockOk({ id: 1, table_number: 1, status: "DRAFT" }, 201);

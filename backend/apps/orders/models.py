@@ -27,7 +27,8 @@ class Order(models.Model):
     `table_number` is a plain copy of the table's number at creation
     time (or after RF-7's correction) — never a live FK to `Table`, so
     resizing the table count never breaks historical orders (see
-    plan.md, section 5, decision 1).
+    plan.md, section 5, decision 1). Empty for a counter / takeaway
+    order ("Mostrador", RF-18), which never holds a table.
     """
 
     class Status(models.TextChoices):
@@ -36,7 +37,7 @@ class Order(models.Model):
         CHARGED = "CHARGED", "Charged"
         VOIDED = "VOIDED", "Voided"
 
-    table_number = models.PositiveIntegerField()
+    table_number = models.PositiveIntegerField(null=True, blank=True)
     waiter = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="orders"
     )
@@ -52,7 +53,15 @@ class Order(models.Model):
     admin_note = models.CharField(max_length=300, blank=True)
 
     def __str__(self):
-        return f"Order {self.id} (table {self.table_number})"
+        return f"Order {self.id} ({table_label(self)})"
+
+
+def table_label(order):
+    """RF-18: how an order's place reads on screens, tickets and receipts —
+    "Mesa N", or "Mostrador" for a counter order without a table."""
+    if order.table_number is None:
+        return "Mostrador"
+    return f"Mesa {order.table_number}"
 
 
 class OrderItem(models.Model):

@@ -18,7 +18,7 @@ import {
 } from "@/lib/api/orders";
 import { getMenu, type Product } from "@/lib/api/menu";
 import { matchesSearch } from "@/lib/search";
-import { formatPrice } from "@/lib/format";
+import { formatPrice, tableLabel } from "@/lib/format";
 import styles from "./OrderBuilder.module.css";
 
 const STATUS_LABEL: Record<Order["status"], string> = {
@@ -227,7 +227,7 @@ export function OrderBuilder({ orderId }: { orderId: number }) {
           <h1 className={styles.heading}>
             Pedido <span className={styles.orderId}>{order.id}</span>
           </h1>
-          <span className={styles.table}>Mesa {order.table_number}</span>
+          <span className={styles.table}>{tableLabel(order.table_number)}</span>
         </div>
         <span
           className={`${styles.badge} ${
@@ -457,7 +457,9 @@ export function OrderBuilder({ orderId }: { orderId: number }) {
         </button>
       )}
 
-      {(order.status === "DRAFT" || order.status === "IN_PROGRESS") && (
+      {/* RF-18: a counter order has no table to correct. */}
+      {(order.status === "DRAFT" || order.status === "IN_PROGRESS") &&
+        order.table_number !== null && (
         <form className={styles.card} onSubmit={handleFixTable}>
           <h2 className={styles.cardTitle}>Corregir mesa</h2>
           <div className={styles.field}>

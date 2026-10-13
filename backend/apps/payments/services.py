@@ -89,6 +89,15 @@ def _ensure_expected_total(subtotal, raw_expected):
 
 
 def _ensure_chargeable(order):
+    """An order in progress on an occupied table — or, for a counter order
+    (003 RF-18), just in progress: it has no table. Returns the table, or
+    None for a counter order."""
+    if order.table_number is None:
+        if order.status != Order.Status.IN_PROGRESS:
+            raise ValidationError(
+                "Este pedido no admite cobro en este momento.", code="not_chargeable"
+            )
+        return None
     try:
         table = Table.objects.get(number=order.table_number)
     except Table.DoesNotExist:
@@ -160,8 +169,9 @@ def charge_order(
     order.save(update_fields=["status"])
     # 003 RF-5: additions never sent never existed for the system.
     pending_additions(order).delete()
-    table.status = Table.Status.PAID
-    table.save(update_fields=["status"])
+    if table is not None:  # 003 RF-18: a counter order has no table to pay.
+        table.status = Table.Status.PAID
+        table.save(update_fields=["status"])
     register_action(order, OrderAction.ActionType.CHARGED, admin)
     return payment
 
@@ -207,7 +217,8 @@ def void_charge(order, admin, reason):
             "Este pedido no tiene ningún cobro activo.", code="not_found"
         )
 
-    table_reassigned = (
+    # 003 RF-18: a counter order holds no table, so none can be reassigned.
+    table_reassigned = order.table_number is not None and (
         Order.objects.filter(
             table_number=order.table_number,
             status__in=(Order.Status.DRAFT, Order.Status.IN_PROGRESS),

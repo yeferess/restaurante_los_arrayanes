@@ -70,6 +70,9 @@ nunca se rompa ese invariante (ver RF-6).
   mientras su mesa esté "ocupada" (003, `Table.Status.OCCUPIED`), sin
   importar si el pedido ya se marcó como entregado o no (003 RF-8). No
   existe un estado intermedio de "por cobrar".
+- Un pedido de mostrador (003 RF-18) no tiene mesa: se cobra mientras
+  esté "en preparación", ninguna mesa pasa a "pagada", el comprobante
+  dice "Mostrador", y anular su cobro no revisa ni ocupa mesas.
 - El sistema no deberá permitir cobrar un pedido que esté en "borrador",
   ya "cobrado", o "anulado" — mismo criterio que el cobro ya definido en
   003 (RF-9).

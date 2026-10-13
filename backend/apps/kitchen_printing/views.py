@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.kitchen_printing import services
-from apps.kitchen_printing.permissions import IsMesero
+from apps.kitchen_printing.permissions import IsMeseroOrAdmin
 from apps.orders.models import Order
 from apps.orders.serializers import OrderSerializer
 
@@ -22,7 +22,7 @@ class PrintOrderView(APIView):
     "Imprimir pedido". Owner-only. Also served at the old
     /reimprimir path (the former "Reintentar")."""
 
-    permission_classes = [IsMesero]
+    permission_classes = [IsMeseroOrAdmin]
 
     def post(self, request, pk):
         try:

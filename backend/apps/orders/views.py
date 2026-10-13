@@ -10,7 +10,7 @@ from rest_framework.views import APIView
 
 from apps.orders import services
 from apps.orders.models import Order, OrderItem, Table
-from apps.orders.permissions import IsAdmin, IsMesero
+from apps.orders.permissions import IsAdmin, IsMesero, IsMeseroOrAdmin
 from apps.orders.serializers import (
     AdminOrderSerializer,
     OccupiedTableSerializer,
@@ -132,14 +132,20 @@ class ReleaseTableView(APIView):
 
 
 class CreateOrderView(APIView):
-    """POST /api/pedidos (RF-2). Mesero-only."""
+    """POST /api/pedidos (RF-2, RF-18). A mesero, or an admin taking an
+    order from the computer; only an admin may leave `table_number`
+    empty for a counter order ("Mostrador")."""
 
-    permission_classes = [IsMesero]
+    permission_classes = [IsMeseroOrAdmin]
 
     def post(self, request):
+        raw_table = request.data.get("table_number")
         try:
-            table_number = int(request.data.get("table_number"))
+            table_number = None if raw_table in (None, "") else int(raw_table)
         except (TypeError, ValueError):
+            table_number = "invalid"
+        is_admin = request.user.role == request.user.Role.ADMIN
+        if table_number == "invalid" or (table_number is None and not is_admin):
             return Response(
                 {"detail": "table_number es obligatorio y debe ser un entero."},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -152,10 +158,10 @@ class CreateOrderView(APIView):
 
 
 class MyOrdersView(APIView):
-    """GET /api/pedidos/mios (RF-8, RF-10, RF-13). Mesero-only, own
-    orders."""
+    """GET /api/pedidos/mios (RF-8, RF-10, RF-13, RF-18). The caller's own
+    orders — a mesero's, or the ones an admin created."""
 
-    permission_classes = [IsMesero]
+    permission_classes = [IsMeseroOrAdmin]
 
     def get(self, request):
         day, error = _day_from_query(request)
@@ -217,7 +223,11 @@ class OrderDetailView(APIView):
         if not (is_admin or is_owner):
             return Response(status=status.HTTP_403_FORBIDDEN)
 
-        serializer_class = AdminOrderSerializer if is_admin else OrderSerializer
+        # RF-18: an admin building their own order gets the owner's view
+        # (with its unsent additions), like any waiter.
+        serializer_class = (
+            AdminOrderSerializer if is_admin and not is_owner else OrderSerializer
+        )
         return Response(serializer_class(order).data)
 
     def delete(self, request, pk):
@@ -236,7 +246,7 @@ class OrderDetailView(APIView):
 class AddItemView(APIView):
     """POST /api/pedidos/{id}/items (RF-3, RF-4, RF-5). Owner-only."""
 
-    permission_classes = [IsMesero]
+    permission_classes = [IsMeseroOrAdmin]
 
     def post(self, request, pk):
         order, error = _get_own_order_or_error(request, pk)
@@ -263,7 +273,7 @@ class AddItemView(APIView):
 class RemoveItemView(APIView):
     """DELETE /api/pedidos/{id}/items/{item_id} (RF-2). Owner-only."""
 
-    permission_classes = [IsMesero]
+    permission_classes = [IsMeseroOrAdmin]
 
     def delete(self, request, pk, item_id):
         order, error = _get_own_order_or_error(request, pk)
@@ -286,7 +296,7 @@ class RemoveItemView(APIView):
 class VoidItemView(APIView):
     """POST /api/pedidos/{id}/items/{item_id}/anular (RF-6). Owner-only."""
 
-    permission_classes = [IsMesero]
+    permission_classes = [IsMeseroOrAdmin]
 
     def post(self, request, pk, item_id):
         order, error = _get_own_order_or_error(request, pk)
@@ -319,7 +329,7 @@ class SendAdditionsView(APIView):
     """POST /api/pedidos/{id}/enviar-adicion (RF-5). Owner-only: the
     pending additions reach the admin and the total, without printing."""
 
-    permission_classes = [IsMesero]
+    permission_classes = [IsMeseroOrAdmin]
 
     def post(self, request, pk):
         order, error = _get_own_order_or_error(request, pk)
@@ -338,7 +348,7 @@ class SendOrderView(APIView):
     """POST /api/pedidos/{id}/enviar (RF-5): "Crear pedido", without
     printing (004 RF-1). Owner-only."""
 
-    permission_classes = [IsMesero]
+    permission_classes = [IsMeseroOrAdmin]
 
     def post(self, request, pk):
         order, error = _get_own_order_or_error(request, pk)
@@ -469,7 +479,7 @@ class AdminNoteView(APIView):
 class SetDeliveredView(APIView):
     """POST /api/pedidos/{id}/entregado (RF-8). Owner-only."""
 
-    permission_classes = [IsMesero]
+    permission_classes = [IsMeseroOrAdmin]
 
     def post(self, request, pk):
         order, error = _get_own_order_or_error(request, pk)
@@ -487,7 +497,7 @@ class SetDeliveredView(APIView):
 class FixTableView(APIView):
     """POST /api/pedidos/{id}/mesa (RF-7). Owner-only."""
 
-    permission_classes = [IsMesero]
+    permission_classes = [IsMeseroOrAdmin]
 
     def post(self, request, pk):
         order, error = _get_own_order_or_error(request, pk)
@@ -510,7 +520,7 @@ class FixTableView(APIView):
 class UpdateItemNoteView(APIView):
     """PATCH /api/pedidos/{id}/items/{item_id}/nota (RF-4). Owner-only."""
 
-    permission_classes = [IsMesero]
+    permission_classes = [IsMeseroOrAdmin]
 
     def patch(self, request, pk, item_id):
         order, error = _get_own_order_or_error(request, pk)

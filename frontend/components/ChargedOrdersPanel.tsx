@@ -8,7 +8,7 @@ import {
   type ApiErrorBody,
 } from "@/lib/api/orders";
 import { printReceipt } from "@/lib/api/payments";
-import { formatPrice, todayIso } from "@/lib/format";
+import { formatPrice, tableLabel, todayIso } from "@/lib/format";
 import { AdminNoteEditor } from "./AdminNoteEditor";
 import styles from "./ChargedOrdersPanel.module.css";
 
@@ -99,7 +99,7 @@ export function ChargedOrdersPanel() {
               <li key={order.id} className={styles.card}>
                 <div className={styles.cardHeader}>
                   <span className={styles.orderId}>{orderTitle(order)}</span>
-                  <span className={styles.table}>Mesa {order.table_number}</span>
+                  <span className={styles.table}>{tableLabel(order.table_number)}</span>
                 </div>
                 <p className={styles.meta}>
                   Mesero: {order.waiter_username}

@@ -46,10 +46,12 @@ class CreateOrderViewTests(APITestCase):
         response = self.client.post(ORDERS_URL, {"table_number": 1}, format="json")
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
 
-    def test_admin_cannot_create_an_order(self):
+    def test_admin_can_create_an_order_as_its_owner(self):
+        """RF-18 (reforma de la regla 5): el admin también crea pedidos."""
         self._login_admin()
         response = self.client.post(ORDERS_URL, {"table_number": 1}, format="json")
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data["table_number"], 1)
 
     def test_without_session_returns_401(self):
         response = self.client.post(ORDERS_URL, {"table_number": 1}, format="json")

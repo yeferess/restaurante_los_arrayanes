@@ -26,6 +26,7 @@ const SECTIONS: Array<{ label: string; items: Array<{ href: string; label: strin
   {
     label: "Pedidos",
     items: [
+      { href: "/admin/pedidos/nuevo", label: "Nuevo pedido" },
       { href: "/admin/pedidos", label: "Entrantes" },
       { href: "/admin/pedidos/cobrados", label: "Cobrados" },
     ],

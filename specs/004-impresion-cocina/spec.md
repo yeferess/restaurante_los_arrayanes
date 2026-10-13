@@ -90,7 +90,8 @@ sola, y dos ítems agregados salían en dos tickets "ADICIÓN" separados.)*
 
 - Todo ticket deberá llevar un encabezado con el tipo de evento que lo
   originó y el número de mesa, con el formato "PEDIDO NUEVO – Mesa N",
-  "ADICIÓN – Mesa N" o "ANULACIÓN – Mesa N" según corresponda.
+  "ADICIÓN – Mesa N" o "ANULACIÓN – Mesa N" según corresponda. Un pedido
+  de mostrador (003 RF-18) lleva "MOSTRADOR" en vez de la mesa.
 - Todo ticket deberá incluir además: el número de mesa, el número del
   día del pedido junto con la fecha y hora en que fue enviado
   ([003-mesas-pedidos RF-14](../003-mesas-pedidos/spec.md)) — nunca el

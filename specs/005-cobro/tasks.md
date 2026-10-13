@@ -316,3 +316,9 @@ una condición verificable de "Hecho cuando".
   Hecho cuando: `compute_charge` suma solo lo enviado y `charge_order`
   descarta las adiciones sin enviar. Tests en
   `test_crear_e_imprimir_aparte.py`.
+
+- [x] **T38 — Cobro de un pedido de mostrador**
+  RF: RF-1, RF-6, RF-11
+  Hecho cuando: `_ensure_chargeable`, `charge_order` y `void_charge`
+  aceptan un pedido sin mesa sin tocar mesas, y el comprobante dice
+  "Mostrador". Tests en `test_pedido_admin_mostrador.py`.

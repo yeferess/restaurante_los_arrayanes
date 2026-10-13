@@ -116,6 +116,14 @@ describe("OrderBuilder (T66, RF-3/4/5/6/7)", () => {
     expect(deleteOrder).not.toHaveBeenCalled();
   });
 
+  // 003 RF-18: the admin's counter order.
+  it("shows 'Mostrador' and no table correction for a counter order", async () => {
+    vi.mocked(getOrder).mockResolvedValue({ ...IN_PROGRESS_ORDER, table_number: null });
+    render(<OrderBuilder orderId={41} />);
+    expect(await screen.findByText("Mostrador")).toBeInTheDocument();
+    expect(screen.queryByText(/corregir mesa/i)).not.toBeInTheDocument();
+  });
+
   it("keeps a sent order when leaving the screen", async () => {
     vi.mocked(getOrder).mockResolvedValue({ ...DRAFT_ORDER, status: "IN_PROGRESS" });
     const { unmount } = render(<OrderBuilder orderId={41} />);

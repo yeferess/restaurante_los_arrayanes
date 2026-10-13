@@ -44,7 +44,8 @@ export type ActivePayment = {
 
 export type Order = {
   id: number;
-  table_number: number;
+  /** 003 RF-18: null for a counter order ("Mostrador"). */
+  table_number: number | null;
   waiter_id: number;
   waiter_username: string;
   status: OrderStatus;
@@ -96,10 +97,11 @@ export function releaseTable(tableNumber: number): Promise<Table> {
   });
 }
 
-export function createOrder(tableNumber: number): Promise<Order> {
+/** 003 RF-2; RF-18: `null` (admin only) creates a counter order. */
+export function createOrder(tableNumber: number | null): Promise<Order> {
   return requestJson<Order>("/api/pedidos", {
     method: "POST",
-    body: JSON.stringify({ table_number: tableNumber }),
+    body: JSON.stringify(tableNumber === null ? {} : { table_number: tableNumber }),
   });
 }
 

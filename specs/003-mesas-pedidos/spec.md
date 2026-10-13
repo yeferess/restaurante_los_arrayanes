@@ -310,6 +310,9 @@ arman los pedidos), y respeta las reglas 4 y 5 de
   del pedido.
 - El sistema deberá siempre restringir a admin las acciones de cobro
   (RF-9) y anulación de pedido completo (RF-11).
+- El admin también puede crear pedidos (RF-18) y, solo sobre los que él
+  creó, hacer lo mismo que un mesero con los suyos. Ni el admin edita el
+  pedido de un mesero, ni un mesero el del admin.
 - El sistema deberá siempre permitir a cualquier mesero autenticado
   liberar una mesa pagada (RF-10), sin restricción de dueño.
 
@@ -425,6 +428,26 @@ arman los pedidos), y respeta las reglas 4 y 5 de
   en el ticket de cocina ni en el comprobante del cliente
   ([005-cobro RF-11](../005-cobro/spec.md)).
 - Si la nota supera los 300 caracteres, el sistema deberá rechazarla.
+
+### RF-18 — Pedido creado por el admin y pedido de mostrador
+
+*(Agregado 2026-10-13; reforma de la regla 5 de la constitución.)*
+
+- El sistema deberá permitir al admin crear un pedido desde el
+  computador, en la pestaña "Nuevo pedido": en una mesa libre (igual que
+  un mesero, RF-2) o "Mostrador / para llevar", un pedido sin mesa.
+- El pedido queda a nombre del admin, como su dueño: lo arma con la
+  misma pantalla de los meseros (agregar, buscar, quitar, anular,
+  "Crear pedido", "Enviar adición", "Imprimir pedido") y aparece en su
+  lista "Mis pedidos abiertos". Los meseros no lo ven en "Mis pedidos".
+- Solo el admin puede crear un pedido de mostrador; un mesero siempre
+  elige una mesa.
+- Un pedido de mostrador no ocupa ni libera ninguna mesa: no tiene
+  "Corregir mesa", se cobra mientras esté "en preparación" sin pasar
+  ninguna mesa a "pagada", y anular su cobro lo devuelve a "en
+  preparación" sin revisar mesas.
+- En pantallas, ticket de cocina y comprobante, en vez de "Mesa N" se
+  muestra "Mostrador".
 
 ## Requisitos no funcionales
 

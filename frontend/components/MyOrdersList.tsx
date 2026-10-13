@@ -13,7 +13,7 @@ import {
   type Order,
   type ApiErrorBody,
 } from "@/lib/api/orders";
-import { formatPrice, todayIso } from "@/lib/format";
+import { formatPrice, tableLabel, todayIso } from "@/lib/format";
 import styles from "./MyOrdersList.module.css";
 
 const STATUS_LABEL: Record<Order["status"], string> = {
@@ -109,6 +109,7 @@ export function MyOrdersList() {
   async function handleReleaseTable(order: Order) {
     setMessage(null);
     try {
+      if (order.table_number === null) return;
       await releaseTable(order.table_number);
       await refresh();
     } catch (error) {
@@ -190,7 +191,7 @@ export function MyOrdersList() {
                   </span>
                 )}
               </div>
-              <span className={styles.table}>Mesa {order.table_number}</span>
+              <span className={styles.table}>{tableLabel(order.table_number)}</span>
             </div>
             <div className={styles.metaRow}>
               <span className={`${styles.badge} ${displayStatus(order).badgeClass}`}>
@@ -233,7 +234,9 @@ export function MyOrdersList() {
                   Eliminar
                 </button>
               )}
-              {order.status === "CHARGED" && paidTables.has(order.table_number) && (
+              {order.status === "CHARGED" &&
+                order.table_number !== null &&
+                paidTables.has(order.table_number) && (
                 <button
                   type="button"
                   className={`${styles.actionButton} ${styles.actionButtonPrimary}`}

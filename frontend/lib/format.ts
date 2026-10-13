@@ -9,6 +9,11 @@ export function formatPrice(value: string | number): string {
   }).format(numeric);
 }
 
+/** 003 RF-18: "Mesa N", or "Mostrador" for a counter order (no table). */
+export function tableLabel(tableNumber: number | null): string {
+  return tableNumber === null ? "Mostrador" : `Mesa ${tableNumber}`;
+}
+
 /** Today in the browser's local time, as YYYY-MM-DD for <input type="date">. */
 export function todayIso(): string {
   const now = new Date();

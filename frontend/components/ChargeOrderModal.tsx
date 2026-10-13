@@ -11,7 +11,7 @@ import {
   type ChargePreview,
   type PaymentAccount,
 } from "@/lib/api/payments";
-import { formatPrice } from "@/lib/format";
+import { formatPrice, tableLabel } from "@/lib/format";
 import { AdminNoteEditor } from "./AdminNoteEditor";
 import styles from "./ChargeOrderModal.module.css";
 
@@ -210,7 +210,7 @@ export function ChargeOrderModal({
     <div className={styles.overlay}>
       <div className={styles.modal}>
         <h2 className={styles.heading}>
-          {orderTitle(current)} — Mesa {current.table_number}
+          {orderTitle(current)} — {tableLabel(current.table_number)}
         </h2>
         {formatSentAt(current.sent_at) && (
           <p className={styles.sentAt}>Enviado {formatSentAt(current.sent_at)}</p>

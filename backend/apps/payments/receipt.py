@@ -11,6 +11,7 @@ from decimal import Decimal
 from django.utils import timezone
 
 from apps.kitchen_printing.rendering import _center, _columns, _pack_line, to_ascii
+from apps.orders.models import table_label
 
 RECEIPT_TITLE = "FINCA DE RECREO LOS ARRAYANES"
 RECEIPT_SUBTITLE = "COMPROBANTE"
@@ -40,7 +41,7 @@ def build_receipt_text(order, payment) -> str:
         _center(RECEIPT_TITLE, width),
         _center(RECEIPT_SUBTITLE, width),
         "-" * width,
-        _pack_line(f"{daily_number}  Mesa {order.table_number}", charged_at, width),
+        _pack_line(f"{daily_number}  {table_label(order)}", charged_at, width),
         "-" * width,
     ]
     for item in order.items.filter(is_voided=False).order_by("id"):

@@ -10,6 +10,7 @@ from django.conf import settings
 from django.utils import timezone
 
 from apps.kitchen_printing.models import PrintJob
+from apps.orders.models import table_label
 
 TICKET_TYPE_LABELS = {
     PrintJob.TicketType.NEW_ORDER: "PEDIDO NUEVO",
@@ -59,7 +60,7 @@ def _build_header(order, label: str) -> list[str]:
 
     return [
         "=" * width,
-        _center(f"{label} - MESA {order.table_number}", width),
+        _center(f"{label} - {to_ascii(table_label(order)).upper()}", width),
         "=" * width,
         _pack_line(daily_number_tag, sent_at_tag, width),
         _pack_line(f"Mesero: {order.waiter.username}", printed_at_tag, width),

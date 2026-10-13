@@ -148,8 +148,14 @@ def is_stale_occupation(order):
 
 
 def create_order(waiter, table_number):
-    """RF-2: create a draft order on a free table."""
+    """RF-2: create a draft order on a free table. RF-18: an admin may
+    pass `table_number=None` for a counter order ("Mostrador"), which
+    holds no table."""
     discard_stale_drafts()
+    if table_number is None:
+        if waiter.role != waiter.Role.ADMIN:
+            raise ValidationError("Debes elegir una mesa.", code="invalid")
+        return Order.objects.create(table_number=None, waiter=waiter)
     try:
         table = Table.objects.get(number=table_number)
     except Table.DoesNotExist:
@@ -236,6 +242,8 @@ def register_action(
 
 
 def _free_table(table_number):
+    if table_number is None:  # RF-18: a counter order holds no table.
+        return
     Table.objects.filter(number=table_number).update(status=Table.Status.FREE)
 
 
@@ -432,6 +440,10 @@ def fix_table(order, waiter, new_table_number):
     if order.status in (Order.Status.CHARGED, Order.Status.VOIDED):
         raise ValidationError(
             "Este pedido no admite corrección de mesa.", code="not_editable"
+        )
+    if order.table_number is None:
+        raise ValidationError(
+            "Un pedido de mostrador no tiene mesa que corregir.", code="not_editable"
         )
     try:
         destination = Table.objects.get(number=new_table_number)

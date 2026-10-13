@@ -1,0 +1,105 @@
+.section {
+  max-width: 40rem;
+}
+
+.heading {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--ink);
+  margin-bottom: 1.25rem;
+}
+
+.subheading {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--ink);
+  margin: 1.75rem 0 0.75rem;
+}
+
+.message {
+  background: var(--accent-soft);
+  color: var(--accent-pressed);
+  border-radius: 0.6rem;
+  padding: 0.65rem 0.85rem;
+  font-size: 0.9rem;
+  margin-bottom: 1.25rem;
+}
+
+.counterButton {
+  width: 100%;
+  min-height: 3.5rem;
+  border: none;
+  border-radius: 0.8rem;
+  background: var(--accent);
+  color: #fff;
+  font-size: 1.05rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.counterButton:hover {
+  background: var(--accent-pressed);
+}
+
+.tables {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(7rem, 1fr));
+  gap: 0.6rem;
+  list-style: none;
+  padding: 0;
+}
+
+.tableButton {
+  width: 100%;
+  min-height: 3rem;
+  border: 1px solid var(--border);
+  border-radius: 0.7rem;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.tableButton:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.empty {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.openList {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.openItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 0.7rem;
+  background: var(--surface);
+}
+
+.openLink {
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.openLink:hover {
+  color: var(--accent);
+}
+
+.openMeta {
+  color: var(--muted);
+  font-size: 0.9rem;
+}

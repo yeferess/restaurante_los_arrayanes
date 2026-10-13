@@ -690,3 +690,17 @@ condición verificable de "Hecho cuando".
   "Sin enviar", "+ $X sin enviar" y "Enviar adición (N)"; `MyOrdersList`
   marca "Adición sin enviar". Tests en `test_crear_e_imprimir_aparte.py`,
   `OrderBuilder.test.tsx`, `MyOrdersList.test.tsx` y `orders.test.ts`.
+
+- [x] **T98 — El admin crea pedidos, en mesa o de mostrador**
+  RF: RF-13, RF-18
+  Hecho cuando: `Order.table_number` admite vacío (migración 0008);
+  `create_order(admin, None)` crea un pedido de mostrador y un mesero no
+  puede; los endpoints del dueño aceptan al admin con `IsMeseroOrAdmin`
+  sin perder la revisión de dueño; el detalle del pedido propio del admin
+  usa la vista del dueño; `fix_table` rechaza un pedido de mostrador;
+  "Nuevo pedido" en el menú del admin (`AdminNewOrder`, rutas
+  `/admin/pedidos/nuevo` y `/admin/pedidos/nuevo/[id]` con
+  `OrderBuilder`); `tableLabel` muestra "Mostrador". Tests en
+  `test_pedido_admin_mostrador.py`, `AdminNewOrder.test.tsx`,
+  `AdminShell.test.tsx`, `OrderBuilder.test.tsx`,
+  `IncomingOrdersPanel.test.tsx` y `orders.test.ts`.

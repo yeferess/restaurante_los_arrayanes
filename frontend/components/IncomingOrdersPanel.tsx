@@ -13,7 +13,7 @@ import {
   type ApiErrorBody,
 } from "@/lib/api/orders";
 import { subscribeToOrderUpdates } from "@/lib/api/ordersSocket";
-import { formatPrice } from "@/lib/format";
+import { formatPrice, tableLabel } from "@/lib/format";
 import { AdminNoteEditor } from "./AdminNoteEditor";
 import { ChargeOrderModal } from "./ChargeOrderModal";
 import styles from "./IncomingOrdersPanel.module.css";
@@ -162,7 +162,7 @@ export function IncomingOrdersPanel() {
                     </span>
                   )}
                 </div>
-                <span className={styles.table}>Mesa {order.table_number}</span>
+                <span className={styles.table}>{tableLabel(order.table_number)}</span>
               </div>
               <p className={styles.waiter}>Mesero: {order.waiter_username}</p>
               <div className={styles.total}>${formatPrice(order.total)}</div>

@@ -110,6 +110,14 @@ describe("IncomingOrdersPanel (T68, soporte RF-9/11)", () => {
     expect(await screen.findByText("Mesero: mesero1")).toBeInTheDocument();
   });
 
+  // 003 RF-18: a counter order has no table.
+  it("labels a counter order 'Mostrador'", async () => {
+    vi.mocked(listIncomingOrders).mockResolvedValue([{ ...ORDER_1, table_number: null }]);
+    render(<IncomingOrdersPanel />);
+    expect(await screen.findByText("Mostrador")).toBeInTheDocument();
+    expect(screen.queryByText(/mesa 1/i)).not.toBeInTheDocument();
+  });
+
   it("loads and displays incoming orders on mount", async () => {
     render(<IncomingOrdersPanel />);
     expect(await screen.findByText(/mesa 1/i)).toBeInTheDocument();
