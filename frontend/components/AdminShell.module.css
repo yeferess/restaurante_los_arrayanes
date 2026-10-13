@@ -12,6 +12,13 @@
   background: var(--surface);
   border-right: 1px solid var(--border);
   padding: 1.5rem 1rem;
+  /* Stays fixed on the left while the content scrolls; scrolls on its own
+     if the options don't fit the screen. */
+  position: sticky;
+  top: 0;
+  height: 100dvh;
+  align-self: flex-start;
+  overflow-y: auto;
 }
 
 .brand {
