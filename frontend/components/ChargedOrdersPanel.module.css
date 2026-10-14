@@ -130,6 +130,7 @@
   font-style: italic;
   color: var(--muted);
   margin-top: 0.1rem;
+  white-space: pre-line;
 }
 
 .footer {

@@ -84,7 +84,9 @@ class OrderItem(models.Model):
     name = models.CharField(max_length=100)
     unit_price = models.DecimalField(max_digits=10, decimal_places=2)
     quantity = models.PositiveIntegerField(default=1)
-    note = models.CharField(max_length=200, blank=True)
+    # RF-4: one line per note — a repeated item merged into this line
+    # (RF-3) adds its note as a new line underneath.
+    note = models.TextField(blank=True)
     line_type = models.CharField(
         max_length=8, choices=LineType.choices, default=LineType.ORIGINAL
     )

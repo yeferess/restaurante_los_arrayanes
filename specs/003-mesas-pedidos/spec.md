@@ -124,6 +124,15 @@ arman los pedidos), y respeta las reglas 4 y 5 de
   mesero buscarlo por nombre sin distinguir mayúsculas ni tildes; la
   lista solo muestra las coincidencias y queda elegida la primera. Si
   nada coincide, lo avisa y no permite agregar.
+- *(Agregado 2026-10-13.)* Cuando el mesero agrega un ítem que ya
+  está en el pedido sin enviar —una línea del borrador, o una adición
+  sin enviar (RF-5)— con el mismo producto del catálogo (o el mismo
+  nombre fuera de carta, sin distinguir mayúsculas ni espacios de más)
+  y el mismo precio, el sistema deberá sumar la cantidad a esa línea en
+  vez de crear otra, y avisar "Se sumó a «…» (ahora Nx)". Una línea ya
+  enviada nunca se toca: lo nuevo queda en su propia línea, para que el
+  ticket de adición muestre solo lo nuevo y anular una no anule las
+  otras. Una línea anulada tampoco recibe sumas.
 - Si un producto del catálogo deja de estar disponible entre que el
   mesero lo vio en su menú y el momento en que intenta agregarlo,
   entonces el sistema deberá rechazar la operación: el backend siempre
@@ -145,6 +154,11 @@ arman los pedidos), y respeta las reglas 4 y 5 de
   opcional).
 - El sistema deberá siempre exigir que una nota no supere los 200
   caracteres, sin ninguna otra restricción de formato.
+- *(Agregado 2026-10-13.)* Cuando un ítem repetido se suma a su línea
+  (RF-3), su nota queda en un renglón nuevo debajo de las que ya tenía,
+  tal cual la escribió el mesero. Si las notas sumadas de una línea
+  superan los 1000 caracteres, el sistema deberá rechazar la suma y
+  pedir agregarlo en una línea aparte.
 - El sistema deberá siempre permitir editar el texto de una nota ya
   guardada mientras su ítem no esté anulado y el pedido no esté cobrado
   ni anulado.

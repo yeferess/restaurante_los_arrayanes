@@ -112,6 +112,7 @@ export function OrderBuilder({ orderId }: { orderId: number }) {
   async function handleAddItem(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setMessage(null);
+    const requestedQuantity = Number(quantity);
     try {
       const item =
         mode === "catalog"
@@ -132,9 +133,19 @@ export function OrderBuilder({ orderId }: { orderId: number }) {
       setNote("");
       setProductSearch("");
       await refresh();
-      if (item.pending_send) {
+      // RF-3: the backend merged a repeated item into its existing line.
+      const merged =
+        item.quantity > requestedQuantity
+          ? `Se sumó a «${item.name}» (ahora ${item.quantity}x).`
+          : null;
+      const pendingHint = item.pending_send
+        ? "Toca «Enviar adición» o «Imprimir pedido» para que llegue."
+        : null;
+      if (merged || pendingHint) {
         setMessage(
-          "Agregado. Toca «Enviar adición» o «Imprimir pedido» para que llegue."
+          [merged ?? (pendingHint ? "Agregado." : null), pendingHint]
+            .filter(Boolean)
+            .join(" ")
         );
       }
     } catch (error) {

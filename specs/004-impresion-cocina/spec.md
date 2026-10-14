@@ -137,6 +137,10 @@ sola, y dos ítems agregados salían en dos tickets "ADICIÓN" separados.)*
   texto en mayúsculas, con el formato `*** NOTA: texto de la nota ***`.
 - Cada nota aparece una sola vez en el ticket, bajo su ítem; no hay un
   bloque de notas separado.
+- *(Agregado 2026-10-13.)* Si la nota de un ítem tiene varios renglones
+  (un ítem repetido que se sumó, 003 RF-3/RF-4), el sistema deberá
+  imprimir un marcador `*** NOTA: ... ***` por cada renglón, todos bajo
+  el mismo ítem.
 - Si ningún ítem incluido en el ticket tiene nota, el ticket no deberá
   llevar ninguna línea de nota.
 - *(Cambio 2026-10-11: antes las notas se agrupaban al inicio del

@@ -354,3 +354,9 @@ una condición verificable de "Hecho cuando".
   Hecho cuando: el encabezado usa `table_label` y un pedido sin mesa
   imprime "PEDIDO NUEVO - MOSTRADOR". Tests en
   `test_pedido_admin_mostrador.py`.
+
+- [x] **T44 — Una NOTA por renglón**
+  RF: RF-6
+  Hecho cuando: `format_note_lines` imprime un `*** NOTA ***` por cada
+  renglón de la nota (ticket nuevo, adición, anulación y reimpresión).
+  Tests en `test_merge_repeated_items.py`.

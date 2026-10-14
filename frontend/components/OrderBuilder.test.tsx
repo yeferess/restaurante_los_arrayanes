@@ -518,4 +518,39 @@ describe("OrderBuilder (T66, RF-3/4/5/6/7)", () => {
       expect(screen.getByRole("button", { name: /^agregar$/i })).toBeDisabled();
     });
   });
+
+  describe("repeated items (T99, RF-3/4)", () => {
+    const MERGED_LINE = {
+      ...IN_PROGRESS_ORDER.items[0],
+      quantity: 3,
+      note: "una sin hielo\nsin azúcar",
+      line_total: "13.50",
+    };
+
+    it("tells the waiter the item was added to its existing line", async () => {
+      vi.mocked(addItem).mockResolvedValue(MERGED_LINE);
+      const user = userEvent.setup();
+      render(<OrderBuilder orderId={41} />);
+      await screen.findByLabelText(/^producto$/i);
+      await user.click(screen.getByRole("button", { name: /^agregar$/i }));
+      expect(await screen.findByText(/se sumó a «limonada» \(ahora 3x\)/i)).toBeInTheDocument();
+    });
+
+    it("says nothing about merging when the line is new", async () => {
+      vi.mocked(addItem).mockResolvedValue(IN_PROGRESS_ORDER.items[0]);
+      const user = userEvent.setup();
+      render(<OrderBuilder orderId={41} />);
+      await screen.findByLabelText(/^producto$/i);
+      await user.click(screen.getByRole("button", { name: /^agregar$/i }));
+      await waitFor(() => expect(addItem).toHaveBeenCalled());
+      expect(screen.queryByText(/se sumó/i)).not.toBeInTheDocument();
+    });
+
+    it("shows a merged line with every note", async () => {
+      vi.mocked(getOrder).mockResolvedValue({ ...DRAFT_ORDER, items: [MERGED_LINE] });
+      render(<OrderBuilder orderId={41} />);
+      const note = await screen.findByText(/una sin hielo/);
+      expect(note.textContent).toBe("una sin hielo\nsin azúcar");
+    });
+  });
 });

@@ -704,3 +704,14 @@ condición verificable de "Hecho cuando".
   `test_pedido_admin_mostrador.py`, `AdminNewOrder.test.tsx`,
   `AdminShell.test.tsx`, `OrderBuilder.test.tsx`,
   `IncomingOrdersPanel.test.tsx` y `orders.test.ts`.
+
+- [x] **T99 — Sumar ítems repetidos y apilar sus notas**
+  RF: RF-3, RF-4
+  Hecho cuando: `add_item` suma la cantidad a la línea sin enviar, no
+  anulada, del mismo producto (o nombre fuera de carta) y precio, y
+  agrega la nota en un renglón nuevo (`_find_mergeable_line`,
+  `_merge_into_line`); `OrderItem.note` pasa a `TextField` (migración
+  0009) con tope de 1000 caracteres para las notas sumadas;
+  `OrderBuilder` avisa "Se sumó…" y las pantallas muestran cada nota en
+  su renglón. Tests en `test_merge_repeated_items.py`,
+  `OrderBuilder.test.tsx` y `ChargedOrdersPanel.test.tsx`.

@@ -143,6 +143,8 @@
   font-size: 0.85rem;
   color: var(--muted);
   font-style: italic;
+  /* RF-4: a merged item keeps each note on its own line. */
+  white-space: pre-line;
 }
 
 .itemVoidedTag {

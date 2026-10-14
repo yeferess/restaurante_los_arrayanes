@@ -29,7 +29,7 @@ const CHARGED_ORDER = {
       name: "Bandeja paisa",
       unit_price: "25000.00",
       quantity: 3,
-      note: "sin cebolla",
+      note: "sin cebolla\nuna sin chicharrón",
       line_type: "ORIGINAL" as const,
       is_voided: false,
       void_reason: null,
@@ -79,7 +79,10 @@ describe("ChargedOrdersPanel (005, 004 RF-12)", () => {
     expect(screen.getByText(/mesero: yefer/i)).toBeInTheDocument();
     expect(screen.getByText(/efectivo/i)).toBeInTheDocument();
     expect(screen.getByText("3x Bandeja paisa")).toBeInTheDocument();
-    expect(screen.getByText(/nota: sin cebolla/i)).toBeInTheDocument();
+    // T99, RF-4: a merged line keeps each note on its own line.
+    expect(screen.getByText(/nota: sin cebolla/i).textContent).toBe(
+      "Nota: sin cebolla\nuna sin chicharrón"
+    );
     expect(screen.queryByText(/jugo de mora/i)).not.toBeInTheDocument();
   });
 

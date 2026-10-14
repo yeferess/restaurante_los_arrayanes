@@ -19,6 +19,8 @@ from apps.orders.models import DailyOrderCounter, Order, OrderAction, OrderItem,
 
 ITEM_NAME_MAX_LENGTH = 100
 NOTE_MAX_LENGTH = 200
+# RF-4: cap for a line's merged notes (several repeated items, RF-3).
+MERGED_NOTE_MAX_LENGTH = 1000
 ADMIN_NOTE_MAX_LENGTH = 300
 
 # RF-15: thresholds that keep a forgotten order from holding a table.
@@ -289,6 +291,9 @@ def add_item(
     while still in "borrador" (draft), `ADDITION` once "en preparación".
     An addition starts unsent: nobody else sees it and nothing prints
     until the waiter sends it (send_additions) or prints (004 RF-1).
+
+    A repeated item merges into the matching unsent line instead of
+    adding a new one (see _find_mergeable_line).
     """
     if order.status in (Order.Status.CHARGED, Order.Status.VOIDED):
         raise ValidationError(
@@ -322,15 +327,60 @@ def add_item(
         else OrderItem.LineType.ADDITION
     )
 
-    item = OrderItem.objects.create(
-        order=order,
-        catalog_product=catalog_product,
-        name=item_name,
-        unit_price=item_price,
-        quantity=quantity,
-        note=note or "",
+    with transaction.atomic():
+        existing = _find_mergeable_line(
+            order, line_type, catalog_product, item_name, item_price
+        )
+        if existing is not None:
+            return _merge_into_line(existing, quantity, note)
+        return OrderItem.objects.create(
+            order=order,
+            catalog_product=catalog_product,
+            name=item_name,
+            unit_price=item_price,
+            quantity=quantity,
+            note=note or "",
+            line_type=line_type,
+        )
+
+
+def _find_mergeable_line(order, line_type, catalog_product, name, unit_price):
+    """RF-3: the unsent, active line a repeated item adds up to — same
+    catalog product (or same off-menu name, ignoring case and extra
+    spaces) at the same frozen price. A line already sent stays as it
+    is: the repeat becomes its own line, so the kitchen ticket shows only
+    what is new and voiding one never voids the others."""
+    candidates = order.items.select_for_update().filter(
         line_type=line_type,
+        is_voided=False,
+        sent_at__isnull=True,
+        unit_price=unit_price,
+        catalog_product=catalog_product,
+    ).order_by("id")
+    if catalog_product is not None:
+        return candidates.first()
+    wanted = " ".join(name.split()).casefold()
+    return next(
+        (line for line in candidates if " ".join(line.name.split()).casefold() == wanted),
+        None,
     )
+
+
+def _merge_into_line(item, quantity, note):
+    """RF-3, RF-4: add the quantity and put the new note on its own line
+    under the existing ones, exactly as the waiter wrote it."""
+    note = (note or "").strip()
+    merged_note = item.note
+    if note:
+        merged_note = f"{item.note}\n{note}" if item.note else note
+    if len(merged_note) > MERGED_NOTE_MAX_LENGTH:
+        raise ValidationError(
+            "La nota de este ítem ya es muy larga; agrégalo en una línea aparte.",
+            code="invalid",
+        )
+    item.quantity += quantity
+    item.note = merged_note
+    item.save(update_fields=["quantity", "note"])
     return item
 
 

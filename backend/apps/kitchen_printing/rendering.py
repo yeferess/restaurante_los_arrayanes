@@ -85,17 +85,24 @@ def format_item_line(quantity, name: str) -> list[str]:
 def format_note_lines(quantity, note: str) -> list[str]:
     """The item's note, right under its own line, as a
     `*** NOTA: ... ***` marker indented to align with the item's name
-    (RF-6). Empty when the item has no note."""
-    if not note:
-        return []
+    (RF-6) — one marker per line of the note, since a merged item keeps
+    each of its notes on its own line (003 RF-4). Empty when the item has
+    no note."""
     indent = " " * len(f"{quantity}x ")
-    marker = f"*** NOTA: {to_ascii(note).upper()} ***"
-    return textwrap.wrap(
-        marker,
-        width=_columns(),
-        initial_indent=indent,
-        subsequent_indent=indent,
-    )
+    lines = []
+    for note_line in (note or "").splitlines():
+        if not note_line.strip():
+            continue
+        marker = f"*** NOTA: {to_ascii(note_line.strip()).upper()} ***"
+        lines.extend(
+            textwrap.wrap(
+                marker,
+                width=_columns(),
+                initial_indent=indent,
+                subsequent_indent=indent,
+            )
+        )
+    return lines
 
 
 def format_item_with_note(item) -> list[str]:
