@@ -1,0 +1,23 @@
+# Datos reales del restaurante: nunca van al repositorio.
+# (backend/.gitignore y frontend/.gitignore cubren venv, node_modules,
+# backend/db.sqlite3 y los .env de cada proyecto.)
+
+# Copias de la base de datos hechas antes de cada despliegue
+backups/
+
+# Cualquier base de datos SQLite, en cualquier carpeta
+*.sqlite3
+*.sqlite3-journal
+*.sqlite3-wal
+*.sqlite3-shm
+
+# Variables privadas y llaves
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+
+# Configuración local de Claude Code de esta máquina
+.claude/settings.local.json
