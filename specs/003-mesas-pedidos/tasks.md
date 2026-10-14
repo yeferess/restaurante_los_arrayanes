@@ -715,3 +715,14 @@ condición verificable de "Hecho cuando".
   `OrderBuilder` avisa "Se sumó…" y las pantallas muestran cada nota en
   su renglón. Tests en `test_merge_repeated_items.py`,
   `OrderBuilder.test.tsx` y `ChargedOrdersPanel.test.tsx`.
+
+- [x] **T100 — Mostrar sumado el mismo ítem aunque una parte sea adición**
+  RF: RF-3
+  Hecho cuando: `apps/orders/grouping.py` agrupa las líneas activas por
+  producto (o nombre fuera de carta) y precio; el pedido trae
+  `item_groups` (el del admin, sin las partes sin enviar); `OrderBuilder`
+  muestra la línea sumada con sus partes y su botón cada una;
+  `ChargeOrderModal` y `ChargedOrdersPanel` muestran las líneas sumadas;
+  la cuenta y el comprobante imprimen sumado; los tickets de cocina no
+  cambian. Tests en `test_item_groups.py`, `OrderBuilder.test.tsx`,
+  `ChargeOrderModal.test.tsx` y `ChargedOrdersPanel.test.tsx`.

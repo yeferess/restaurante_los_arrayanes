@@ -133,6 +133,17 @@ arman los pedidos), y respeta las reglas 4 y 5 de
   enviada nunca se toca: lo nuevo queda en su propia línea, para que el
   ticket de adición muestre solo lo nuevo y anular una no anule las
   otras. Una línea anulada tampoco recibe sumas.
+- *(Agregado 2026-10-13.)* En las pantallas (la del mesero, la ventana
+  de cobro y la pestaña de cobrados) y en la cuenta y el comprobante
+  impresos ([005 RF-11, RF-13](../005-cobro/spec.md)), el sistema deberá
+  mostrar en una sola línea todas las líneas activas del mismo ítem
+  (mismo producto o nombre fuera de carta y mismo precio), aunque una
+  sea una adición: "3x Bandeja paisa" con todas sus notas. Es solo la
+  forma de mostrarlo: cada parte sigue siendo su propia línea, así que
+  el ticket de cocina de una adición sigue mostrando solo lo nuevo, y en
+  la pantalla del mesero las partes aparecen debajo ("2 del pedido",
+  "1 adición") para anular o eliminar exactamente una. El admin no ve
+  las partes sin enviar. Las líneas anuladas quedan aparte.
 - Si un producto del catálogo deja de estar disponible entre que el
   mesero lo vio en su menú y el momento en que intenta agregarlo,
   entonces el sistema deberá rechazar la operación: el backend siempre

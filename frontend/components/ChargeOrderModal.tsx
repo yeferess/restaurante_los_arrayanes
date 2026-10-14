@@ -236,16 +236,14 @@ export function ChargeOrderModal({
         )}
 
         <ul className={styles.itemsList}>
-          {current.items
-            .filter((item) => !item.is_voided)
-            .map((item) => (
-              <li key={item.id} className={styles.itemLine}>
-                <span>
-                  {item.quantity}x {item.name}
-                </span>
-                <span>${formatPrice(item.line_total)}</span>
-              </li>
-            ))}
+          {(current.item_groups ?? []).map((group) => (
+            <li key={group.parts[0].item_id} className={styles.itemLine}>
+              <span>
+                {group.quantity}x {group.name}
+              </span>
+              <span>${formatPrice(group.line_total)}</span>
+            </li>
+          ))}
         </ul>
         <div className={styles.totalRow}>
           <span>Total</span>

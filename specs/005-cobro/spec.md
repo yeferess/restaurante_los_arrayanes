@@ -258,6 +258,10 @@ nunca se rompa ese invariante (ver RF-6).
   impresión. Si la impresora falla, el sistema avisa con el mismo
   mensaje de la impresión de cocina, sin guardar nada.
 - Endpoint: `POST /api/pedidos/{id}/comprobante`, exclusivo del admin.
+- *(Agregado 2026-10-13.)* El mismo ítem sale en una sola línea aunque
+  una parte haya sido una adición ("3x Bandeja paisa"), igual que en
+  pantalla ([003 RF-3](../003-mesas-pedidos/spec.md)). Aplica también a
+  la cuenta (RF-13).
 
 ### RF-12 — Cobrar siempre lo que se ve en pantalla
 

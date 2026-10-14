@@ -332,3 +332,8 @@ una condición verificable de "Hecho cuando".
   `ChargeOrderModal` muestra "Imprimir cuenta" junto a "Cobrar" y envía
   el descuento escrito. Tests en `test_print_bill.py`,
   `ChargeOrderModal.test.tsx` y `payments.test.ts`.
+
+- [x] **T40 — Comprobante y cuenta sumados por ítem**
+  RF: RF-11, RF-13
+  Hecho cuando: `_header_and_items` imprime cada línea de `group_items`.
+  Tests en `test_item_groups.py`.

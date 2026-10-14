@@ -14,8 +14,9 @@ vi.mock("@/lib/api/payments", () => ({
 
 import { listChargedOrders, reprintOrder } from "@/lib/api/orders";
 import { printReceipt } from "@/lib/api/payments";
+import { oneGroupPerItem } from "@/lib/api/itemGroupsFixture";
 
-const CHARGED_ORDER = {
+const CHARGED_ORDER_LINES = {
   id: 10,
   table_number: 1,
   waiter_id: 1,
@@ -63,6 +64,11 @@ const CHARGED_ORDER = {
   sent_at: "2026-10-11T15:23:09Z",
   created_at: "2026-03-10T18:55:00Z",
   draft_reminder: false,
+};
+
+const CHARGED_ORDER = {
+  ...CHARGED_ORDER_LINES,
+  item_groups: oneGroupPerItem(CHARGED_ORDER_LINES.items),
 };
 
 describe("ChargedOrdersPanel (005, 004 RF-12)", () => {
@@ -144,5 +150,31 @@ describe("ChargedOrdersPanel (005, 004 RF-12)", () => {
     render(<ChargedOrdersPanel />);
     await user.click(await screen.findByRole("button", { name: /reimprimir/i }));
     expect(await screen.findByText(/impresora de cocina no detectada/i)).toBeInTheDocument();
+  });
+
+  it("shows the same item summed into one line with all its notes (T100, 003 RF-3)", async () => {
+    vi.mocked(listChargedOrders).mockResolvedValue([
+      {
+        ...CHARGED_ORDER,
+        item_groups: [
+          {
+            name: "Bandeja paisa",
+            unit_price: "25000.00",
+            quantity: 3,
+            line_total: "75000.00",
+            note: "una sin chorizo\nsin frijoles",
+            parts: [
+              { item_id: 1, quantity: 2, line_type: "ORIGINAL" as const, pending_send: false, note: "una sin chorizo" },
+              { item_id: 5, quantity: 1, line_type: "ADDITION" as const, pending_send: false, note: "sin frijoles" },
+            ],
+          },
+        ],
+      },
+    ]);
+    render(<ChargedOrdersPanel />);
+    expect(await screen.findByText("3x Bandeja paisa")).toBeInTheDocument();
+    expect(screen.getByText(/nota: una sin chorizo/i).textContent).toBe(
+      "Nota: una sin chorizo\nsin frijoles"
+    );
   });
 });

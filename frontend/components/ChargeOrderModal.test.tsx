@@ -28,8 +28,9 @@ import {
 } from "@/lib/api/payments";
 import { chargeOrder, getOrder, setAdminNote } from "@/lib/api/orders";
 import { subscribeToOrderUpdates } from "@/lib/api/ordersSocket";
+import { oneGroupPerItem } from "@/lib/api/itemGroupsFixture";
 
-const ORDER = {
+const ORDER_LINES = {
   id: 41,
   table_number: 5,
   waiter_id: 1,
@@ -58,6 +59,8 @@ const ORDER = {
   created_at: "2026-03-10T18:55:00Z",
   draft_reminder: false,
 };
+
+const ORDER = { ...ORDER_LINES, item_groups: oneGroupPerItem(ORDER_LINES.items) };
 
 const ACCOUNTS = [
   { id: 1, name: "Efectivo", is_fixed: true },
@@ -112,7 +115,10 @@ describe("ChargeOrderModal (005-cobro, RF-1/3/4)", () => {
   it("shows each line's backend total, not a computed one (RF-4)", async () => {
     render(
       <ChargeOrderModal
-        order={{ ...ORDER, items: [{ ...ORDER.items[0], line_total: "123.00" }] }}
+        order={{
+          ...ORDER,
+          item_groups: oneGroupPerItem([{ ...ORDER.items[0], line_total: "123.00" }]),
+        }}
         onClose={onClose}
         onCharged={onCharged}
       />
@@ -432,12 +438,14 @@ describe("ChargeOrderModal (005-cobro, RF-1/3/4)", () => {
 
   // 005 RF-12 / T94 — la ventana de cobrar nunca muestra una copia vieja.
   it("re-fetches the order on open and shows an addition made meanwhile (RF-12)", async () => {
+    const lines = [
+      ...ORDER.items,
+      { ...ORDER.items[0], id: 2, name: "Churrasco", line_type: "ADDITION" as const, line_total: "32.00", quantity: 1, unit_price: "32.00" },
+    ];
     const withAddition = {
       ...ORDER,
-      items: [
-        ...ORDER.items,
-        { ...ORDER.items[0], id: 2, name: "Churrasco", line_type: "ADDITION" as const, line_total: "32.00", quantity: 1, unit_price: "32.00" },
-      ],
+      items: lines,
+      item_groups: oneGroupPerItem(lines),
       total: "41.00",
     };
     vi.mocked(getOrder).mockResolvedValue(withAddition);
@@ -536,5 +544,32 @@ describe("ChargeOrderModal (005-cobro, RF-1/3/4)", () => {
       expect(await screen.findByText(/no puede ser mayor/i)).toBeInTheDocument();
       expect(screen.getByRole("button", { name: /imprimir cuenta/i })).toBeDisabled();
     });
+  });
+
+  it("shows the same item summed into one line (T100, 003 RF-3)", async () => {
+    render(
+      <ChargeOrderModal
+        order={{
+          ...ORDER,
+          item_groups: [
+            {
+              name: "Limonada natural",
+              unit_price: "4.50",
+              quantity: 3,
+              line_total: "13.50",
+              note: "",
+              parts: [
+                { item_id: 1, quantity: 2, line_type: "ORIGINAL" as const, pending_send: false, note: "" },
+                { item_id: 9, quantity: 1, line_type: "ADDITION" as const, pending_send: false, note: "" },
+              ],
+            },
+          ],
+        }}
+        onClose={onClose}
+        onCharged={onCharged}
+      />
+    );
+    expect(await screen.findByText("3x Limonada natural")).toBeInTheDocument();
+    expect(screen.getByText("$13,50")).toBeInTheDocument();
   });
 });

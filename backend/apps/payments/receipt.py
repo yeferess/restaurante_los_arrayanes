@@ -37,8 +37,10 @@ def _wrap(text: str, width: int) -> list[str]:
 
 def _header_and_items(order, subtitle, moment, width) -> list[str]:
     """Title, order number, place and time, then every active item with
-    its quantity, unit price and line total. Unsent additions never
+    its quantity, unit price and line total — the same item summed into
+    one line, an addition included (003 RF-3). Unsent additions never
     count (003 RF-5): on a charged order they no longer exist."""
+    from apps.orders.grouping import group_items
     from apps.orders.services import exclude_pending_send
 
     daily_number = f"N° {order.daily_number}" if order.daily_number is not None else "N°"
@@ -50,13 +52,12 @@ def _header_and_items(order, subtitle, moment, width) -> list[str]:
         _pack_line(f"{daily_number}  {table_label(order)}", stamp, width),
         "-" * width,
     ]
-    items = exclude_pending_send(order.items.filter(is_voided=False)).order_by("id")
-    for item in items:
-        lines.extend(_wrap(f"{item.quantity}x {to_ascii(item.name)}", width))
+    for group in group_items(exclude_pending_send(order.items.filter(is_voided=False))):
+        lines.extend(_wrap(f"{group.quantity}x {to_ascii(group.name)}", width))
         lines.append(
             _pack_line(
-                f"   {item.quantity} x {format_pesos(item.unit_price)}",
-                format_pesos(item.unit_price * item.quantity),
+                f"   {group.quantity} x {format_pesos(group.unit_price)}",
+                format_pesos(group.line_total),
                 width,
             )
         )

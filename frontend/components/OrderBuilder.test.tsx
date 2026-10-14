@@ -33,6 +33,16 @@ import {
   deleteOrder,
 } from "@/lib/api/orders";
 import { getMenu } from "@/lib/api/menu";
+import { oneGroupPerItem } from "@/lib/api/itemGroupsFixture";
+import type { ItemGroup, OrderItem } from "@/lib/api/orders";
+
+/** An order fixture with the `item_groups` the backend would send. */
+function withItems<T extends object>(
+  order: T,
+  items: OrderItem[]
+): Omit<T, "items" | "item_groups"> & { items: OrderItem[]; item_groups: ItemGroup[] } {
+  return { ...order, items, item_groups: oneGroupPerItem(items) };
+}
 
 const DRAFT_ORDER = {
   id: 41,
@@ -42,6 +52,7 @@ const DRAFT_ORDER = {
   status: "DRAFT" as const,
   delivered: false,
   items: [],
+  item_groups: [],
   total: "0.00",
   has_pending_print: false,
   active_payment: null,
@@ -57,24 +68,20 @@ const DELIVERED_ORDER = {
   delivered: true,
 };
 
-const IN_PROGRESS_ORDER = {
-  ...DRAFT_ORDER,
-  status: "IN_PROGRESS" as const,
-  items: [
-    {
-      id: 100,
-      order_id: 41,
-      name: "Limonada",
-      unit_price: "4.50",
-      quantity: 1,
-      note: "",
-      line_type: "ORIGINAL" as const,
-      is_voided: false,
-      void_reason: null,
-      line_total: "4.50",
-    },
-  ],
-};
+const IN_PROGRESS_ORDER = withItems({ ...DRAFT_ORDER, status: "IN_PROGRESS" as const }, [
+  {
+    id: 100,
+    order_id: 41,
+    name: "Limonada",
+    unit_price: "4.50",
+    quantity: 1,
+    note: "",
+    line_type: "ORIGINAL" as const,
+    is_voided: false,
+    void_reason: null,
+    line_total: "4.50",
+  },
+]);
 
 describe("OrderBuilder (T66, RF-3/4/5/6/7)", () => {
   beforeEach(() => {
@@ -134,8 +141,9 @@ describe("OrderBuilder (T66, RF-3/4/5/6/7)", () => {
 
   it("shows each line's unit price and total, and the order total (RF-3)", async () => {
     vi.mocked(getOrder).mockResolvedValue({
-      ...IN_PROGRESS_ORDER,
-      items: [{ ...IN_PROGRESS_ORDER.items[0], quantity: 3, line_total: "13.50" }],
+      ...withItems(IN_PROGRESS_ORDER, [
+        { ...IN_PROGRESS_ORDER.items[0], quantity: 3, line_total: "13.50" },
+      ]),
       total: "13.50",
     });
     render(<OrderBuilder orderId={41} />);
@@ -189,10 +197,9 @@ describe("OrderBuilder (T66, RF-3/4/5/6/7)", () => {
   });
 
   it("shows an item's unit price with a thousands separator", async () => {
-    vi.mocked(getOrder).mockResolvedValue({
-      ...IN_PROGRESS_ORDER,
-      items: [{ ...IN_PROGRESS_ORDER.items[0], unit_price: "15000.00" }],
-    });
+    vi.mocked(getOrder).mockResolvedValue(
+      withItems(IN_PROGRESS_ORDER, [{ ...IN_PROGRESS_ORDER.items[0], unit_price: "15000.00" }])
+    );
     render(<OrderBuilder orderId={41} />);
     expect(await screen.findByText(/\$15\.000,00/)).toBeInTheDocument();
   });
@@ -319,8 +326,7 @@ describe("OrderBuilder (T66, RF-3/4/5/6/7)", () => {
       pending_send: true,
     };
     const WITH_UNSENT = {
-      ...IN_PROGRESS_ORDER,
-      items: [IN_PROGRESS_ORDER.items[0], UNSENT_ADDITION],
+      ...withItems(IN_PROGRESS_ORDER, [IN_PROGRESS_ORDER.items[0], UNSENT_ADDITION]),
       total: "4.50",
       pending_additions_count: 1,
       pending_additions_total: "6.00",
@@ -396,8 +402,10 @@ describe("OrderBuilder (T66, RF-3/4/5/6/7)", () => {
     it("sends the additions without printing", async () => {
       vi.mocked(getOrder).mockResolvedValue(WITH_UNSENT);
       vi.mocked(sendAdditions).mockResolvedValue({
-        ...WITH_UNSENT,
-        items: [IN_PROGRESS_ORDER.items[0], { ...UNSENT_ADDITION, pending_send: false }],
+        ...withItems(WITH_UNSENT, [
+          IN_PROGRESS_ORDER.items[0],
+          { ...UNSENT_ADDITION, pending_send: false },
+        ]),
         total: "10.50",
         pending_additions_count: 0,
         pending_additions_total: "0.00",
@@ -547,10 +555,81 @@ describe("OrderBuilder (T66, RF-3/4/5/6/7)", () => {
     });
 
     it("shows a merged line with every note", async () => {
-      vi.mocked(getOrder).mockResolvedValue({ ...DRAFT_ORDER, items: [MERGED_LINE] });
+      vi.mocked(getOrder).mockResolvedValue(withItems(DRAFT_ORDER, [MERGED_LINE]));
       render(<OrderBuilder orderId={41} />);
       const note = await screen.findByText(/una sin hielo/);
       expect(note.textContent).toBe("una sin hielo\nsin azúcar");
+    });
+  });
+
+  describe("summed item made of several lines (T100, RF-3)", () => {
+    const SENT = { ...IN_PROGRESS_ORDER.items[0], quantity: 2, line_total: "9.00", note: "una sin hielo" };
+    const ADDITION = {
+      ...IN_PROGRESS_ORDER.items[0],
+      id: 102,
+      line_type: "ADDITION" as const,
+      note: "sin azúcar",
+      pending_send: true,
+    };
+    const SUMMED = {
+      ...IN_PROGRESS_ORDER,
+      items: [SENT, ADDITION],
+      item_groups: [
+        {
+          name: "Limonada",
+          unit_price: "4.50",
+          quantity: 3,
+          line_total: "13.50",
+          note: "una sin hielo\nsin azúcar",
+          parts: [
+            { item_id: 100, quantity: 2, line_type: "ORIGINAL" as const, pending_send: false, note: "una sin hielo" },
+            { item_id: 102, quantity: 1, line_type: "ADDITION" as const, pending_send: true, note: "sin azúcar" },
+          ],
+        },
+      ],
+    };
+
+    it("shows one summed line with its notes and its parts", async () => {
+      vi.mocked(getOrder).mockResolvedValue(SUMMED);
+      render(<OrderBuilder orderId={41} />);
+      expect(await screen.findByText("3x")).toBeInTheDocument();
+      expect(screen.getAllByText(/limonada/i, { selector: "span" })).toHaveLength(1);
+      expect(screen.getByText(/una sin hielo/).textContent).toBe("una sin hielo\nsin azúcar");
+      expect(screen.getByText("2 del pedido")).toBeInTheDocument();
+      expect(screen.getByText("1 adición")).toBeInTheDocument();
+    });
+
+    it("voids exactly the sent part", async () => {
+      vi.mocked(getOrder).mockResolvedValue(SUMMED);
+      vi.mocked(voidItem).mockResolvedValue({ ...SENT, is_voided: true });
+      vi.spyOn(window, "prompt").mockReturnValue("se equivocó");
+      const user = userEvent.setup();
+      render(<OrderBuilder orderId={41} />);
+      await screen.findByText("2 del pedido");
+      await user.click(screen.getByRole("button", { name: /anular/i }));
+      expect(voidItem).toHaveBeenCalledWith(41, 100, "se equivocó");
+    });
+
+    it("removes exactly the unsent part", async () => {
+      vi.mocked(getOrder).mockResolvedValue(SUMMED);
+      vi.mocked(removeItem).mockResolvedValue(undefined);
+      const user = userEvent.setup();
+      render(<OrderBuilder orderId={41} />);
+      await screen.findByText("1 adición");
+      await user.click(screen.getByRole("button", { name: /eliminar/i }));
+      expect(removeItem).toHaveBeenCalledWith(41, 102);
+    });
+
+    it("keeps a voided line apart, struck through", async () => {
+      vi.mocked(getOrder).mockResolvedValue(
+        withItems(IN_PROGRESS_ORDER, [
+          IN_PROGRESS_ORDER.items[0],
+          { ...IN_PROGRESS_ORDER.items[0], id: 103, is_voided: true },
+        ])
+      );
+      render(<OrderBuilder orderId={41} />);
+      expect(await screen.findByText("Anulado")).toBeInTheDocument();
+      expect(screen.getAllByText("1x")).toHaveLength(2);
     });
   });
 });

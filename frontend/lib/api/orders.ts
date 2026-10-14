@@ -31,6 +31,27 @@ export type OrderItem = {
   print_warning?: string | null;
 };
 
+/** 003 RF-3: one line of an order the way people read it — the same
+ * item summed (an addition included) with all its notes — and the
+ * order lines it is made of, so a part can still be voided or removed
+ * on its own. Built by the backend. */
+export type ItemGroupPart = {
+  item_id: number;
+  quantity: number;
+  line_type: "ORIGINAL" | "ADDITION";
+  pending_send: boolean;
+  note: string;
+};
+
+export type ItemGroup = {
+  name: string;
+  unit_price: string;
+  quantity: number;
+  line_total: string;
+  note: string;
+  parts: ItemGroupPart[];
+};
+
 export type ActivePayment = {
   account_name: string;
   /** 005 RF-10: items total, peso discount and what was actually paid. */
@@ -51,6 +72,8 @@ export type Order = {
   status: OrderStatus;
   delivered: boolean;
   items: OrderItem[];
+  /** 003 RF-3: the active lines summed by item (see ItemGroup). */
+  item_groups?: ItemGroup[];
   total: string;
   /** 003 RF-5: unsent additions, kept out of `total` (waiter-only). */
   pending_additions_count?: number;

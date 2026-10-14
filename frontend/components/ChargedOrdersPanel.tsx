@@ -94,7 +94,6 @@ export function ChargedOrdersPanel() {
       ) : (
         <ul className={styles.list}>
           {orders.map((order) => {
-            const activeItems = order.items.filter((item) => !item.is_voided);
             return (
               <li key={order.id} className={styles.card}>
                 <div className={styles.cardHeader}>
@@ -111,20 +110,20 @@ export function ChargedOrdersPanel() {
                   )}
                 </p>
                 <ul className={styles.items}>
-                  {activeItems.map((item) => (
-                    <li key={item.id} className={styles.item}>
+                  {(order.item_groups ?? []).map((group) => (
+                    <li key={group.parts[0].item_id} className={styles.item}>
                       <div className={styles.itemLine}>
                         <span>
-                          {item.quantity}x {item.name}
+                          {group.quantity}x {group.name}
                         </span>
                         <span className={styles.itemPrice}>
-                          ${formatPrice(item.unit_price)} c/u ·{" "}
+                          ${formatPrice(group.unit_price)} c/u ·{" "}
                           <strong className={styles.itemLineTotal}>
-                            ${formatPrice(item.line_total)}
+                            ${formatPrice(group.line_total)}
                           </strong>
                         </span>
                       </div>
-                      {item.note && <p className={styles.note}>Nota: {item.note}</p>}
+                      {group.note && <p className={styles.note}>Nota: {group.note}</p>}
                     </li>
                   ))}
                 </ul>

@@ -5,6 +5,7 @@ from rest_framework import serializers
 from apps.kitchen_printing.models import PrintJob
 from apps.kitchen_printing.rendering import has_unprinted_changes
 from apps.orders import services
+from apps.orders.grouping import group_items
 from apps.orders.models import Order, OrderItem, Table
 from apps.payments.models import Payment
 
@@ -65,6 +66,32 @@ class OrderItemSerializer(serializers.ModelSerializer):
         return services.is_pending_send(obj)
 
 
+def _serialize_groups(items):
+    """RF-3: the order's active lines as people read them — the same item
+    summed into one line with all its notes — plus the parts each one is
+    made of, so a screen can still void or remove exactly one part."""
+    return [
+        {
+            "name": group.name,
+            "unit_price": str(group.unit_price),
+            "quantity": group.quantity,
+            "line_total": str(group.line_total),
+            "note": group.note,
+            "parts": [
+                {
+                    "item_id": part.id,
+                    "quantity": part.quantity,
+                    "line_type": part.line_type,
+                    "pending_send": services.is_pending_send(part),
+                    "note": part.note,
+                }
+                for part in group.parts
+            ],
+        }
+        for group in group_items(items)
+    ]
+
+
 def _items_total(items):
     """Active lines that reached the system — never voided ones, never
     additions still unsent (RF-5)."""
@@ -83,6 +110,7 @@ class OrderSerializer(serializers.ModelSerializer):
     additions flagged `pending_send` and kept out of `total`."""
 
     items = OrderItemSerializer(many=True, read_only=True)
+    item_groups = serializers.SerializerMethodField()
     total = serializers.SerializerMethodField()
     pending_additions_count = serializers.SerializerMethodField()
     pending_additions_total = serializers.SerializerMethodField()
@@ -102,6 +130,7 @@ class OrderSerializer(serializers.ModelSerializer):
             "status",
             "delivered",
             "items",
+            "item_groups",
             "total",
             "pending_additions_count",
             "pending_additions_total",
@@ -113,6 +142,11 @@ class OrderSerializer(serializers.ModelSerializer):
             "created_at",
             "draft_reminder",
         ]
+
+    def get_item_groups(self, obj):
+        """The waiter sees their unsent additions summed in too, flagged
+        `pending_send` on their part."""
+        return _serialize_groups(obj.items.all())
 
     def get_total(self, obj):
         return _items_total(obj.items.all())
@@ -173,6 +207,7 @@ class AdminOrderSerializer(OrderSerializer):
     that reached the system; an unsent addition stays the waiter's."""
 
     items = serializers.SerializerMethodField()
+    item_groups = serializers.SerializerMethodField()
 
     class Meta(OrderSerializer.Meta):
         fields = [
@@ -181,9 +216,14 @@ class AdminOrderSerializer(OrderSerializer):
             if field not in _WAITER_ONLY_FIELDS
         ] + ["admin_note"]
 
+    def _sent_items(self, obj):
+        return [item for item in obj.items.all() if not services.is_pending_send(item)]
+
     def get_items(self, obj):
-        sent = [item for item in obj.items.all() if not services.is_pending_send(item)]
-        return OrderItemSerializer(sent, many=True).data
+        return OrderItemSerializer(self._sent_items(obj), many=True).data
+
+    def get_item_groups(self, obj):
+        return _serialize_groups(self._sent_items(obj))
 
 
 class OccupiedTableSerializer(serializers.Serializer):

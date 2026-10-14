@@ -15,6 +15,7 @@ from django.utils import timezone
 
 from apps.menu.models import Product
 from apps.orders.consumers import ORDERS_GROUP_NAME
+from apps.orders.grouping import normalize_name
 from apps.orders.models import DailyOrderCounter, Order, OrderAction, OrderItem, Table
 
 ITEM_NAME_MAX_LENGTH = 100
@@ -359,9 +360,9 @@ def _find_mergeable_line(order, line_type, catalog_product, name, unit_price):
     ).order_by("id")
     if catalog_product is not None:
         return candidates.first()
-    wanted = " ".join(name.split()).casefold()
+    wanted = normalize_name(name)
     return next(
-        (line for line in candidates if " ".join(line.name.split()).casefold() == wanted),
+        (line for line in candidates if normalize_name(line.name) == wanted),
         None,
     )
 

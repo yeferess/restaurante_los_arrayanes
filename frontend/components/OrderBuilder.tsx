@@ -12,6 +12,7 @@ import {
   printOrder,
   fixTable,
   listTables,
+  type ItemGroupPart,
   type Order,
   type Table,
   type ApiErrorBody,
@@ -36,6 +37,13 @@ function displayStatus(order: Order): { label: string; isDelivered: boolean } {
     return { label: "Entregado", isDelivered: true };
   }
   return { label: STATUS_LABEL[order.status], isDelivered: false };
+}
+
+/** RF-3: how one part of a summed item reads — "2 del pedido",
+ * "1 adición", "2 adiciones". */
+function partLabel(part: ItemGroupPart): string {
+  if (part.line_type === "ORIGINAL") return `${part.quantity} del pedido`;
+  return `${part.quantity} ${part.quantity === 1 ? "adición" : "adiciones"}`;
 }
 
 function formatError(error: unknown): string {
@@ -231,6 +239,34 @@ export function OrderBuilder({ orderId }: { orderId: number }) {
     return <p role="status">{message ?? "Cargando..."}</p>;
   }
 
+  /** RF-2, RF-5, RF-6: what can be done with one line of a summed item —
+   * remove it while it never reached the system, void it once sent. */
+  function partAction(part: ItemGroupPart) {
+    if (order?.status === "DRAFT" || part.pending_send) {
+      return (
+        <button
+          type="button"
+          className={styles.voidButton}
+          onClick={() => handleRemoveItem(part.item_id)}
+        >
+          Eliminar
+        </button>
+      );
+    }
+    if (order?.status === "IN_PROGRESS") {
+      return (
+        <button
+          type="button"
+          className={styles.voidButton}
+          onClick={() => handleVoidItem(part.item_id)}
+        >
+          Anular
+        </button>
+      );
+    }
+    return null;
+  }
+
   return (
     <section className={styles.section}>
       <div>
@@ -260,47 +296,63 @@ export function OrderBuilder({ orderId }: { orderId: number }) {
           <p className={styles.emptyItems}>Todavía no agregaste ningún ítem.</p>
         ) : (
           <ul className={styles.itemsList}>
-            {order.items.map((item) => (
-              <li
-                key={item.id}
-                className={item.is_voided ? `${styles.item} ${styles.itemVoided}` : styles.item}
-              >
-                <div className={styles.itemInfo}>
-                  <span className={styles.itemLine}>
-                    <span className={styles.itemQty}>{item.quantity}x</span> {item.name}
-                  </span>
-                  <span className={styles.itemPrices}>
-                    ${formatPrice(item.unit_price)} c/u ·{" "}
-                    <strong className={styles.itemLineTotal}>
-                      ${formatPrice(item.line_total)}
-                    </strong>
-                  </span>
-                  {item.note && <span className={styles.itemNote}>{item.note}</span>}
-                  {item.is_voided && <span className={styles.itemVoidedTag}>Anulado</span>}
-                  {item.pending_send && (
-                    <span className={styles.itemPendingTag}>Sin enviar</span>
-                  )}
-                </div>
-                {(order.status === "DRAFT" || item.pending_send) && (
-                  <button
-                    type="button"
-                    className={styles.voidButton}
-                    onClick={() => handleRemoveItem(item.id)}
-                  >
-                    Eliminar
-                  </button>
-                )}
-                {!item.is_voided && !item.pending_send && order.status === "IN_PROGRESS" && (
-                  <button
-                    type="button"
-                    className={styles.voidButton}
-                    onClick={() => handleVoidItem(item.id)}
-                  >
-                    Anular
-                  </button>
-                )}
-              </li>
-            ))}
+            {(order.item_groups ?? []).map((group) => {
+              const single = group.parts.length === 1 ? group.parts[0] : null;
+              return (
+                <li key={`group-${group.parts[0].item_id}`} className={styles.item}>
+                  <div className={styles.itemInfo}>
+                    <span className={styles.itemLine}>
+                      <span className={styles.itemQty}>{group.quantity}x</span> {group.name}
+                    </span>
+                    <span className={styles.itemPrices}>
+                      ${formatPrice(group.unit_price)} c/u ·{" "}
+                      <strong className={styles.itemLineTotal}>
+                        ${formatPrice(group.line_total)}
+                      </strong>
+                    </span>
+                    {group.note && <span className={styles.itemNote}>{group.note}</span>}
+                    {single?.pending_send && (
+                      <span className={styles.itemPendingTag}>Sin enviar</span>
+                    )}
+                    {!single && (
+                      <ul className={styles.itemParts}>
+                        {group.parts.map((part) => (
+                          <li key={part.item_id} className={styles.itemPart}>
+                            <span>
+                              {partLabel(part)}
+                              {part.pending_send && (
+                                <span className={styles.itemPendingTag}>Sin enviar</span>
+                              )}
+                            </span>
+                            {partAction(part)}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                  {single && partAction(single)}
+                </li>
+              );
+            })}
+            {order.items
+              .filter((item) => item.is_voided)
+              .map((item) => (
+                <li key={item.id} className={`${styles.item} ${styles.itemVoided}`}>
+                  <div className={styles.itemInfo}>
+                    <span className={styles.itemLine}>
+                      <span className={styles.itemQty}>{item.quantity}x</span> {item.name}
+                    </span>
+                    <span className={styles.itemPrices}>
+                      ${formatPrice(item.unit_price)} c/u ·{" "}
+                      <strong className={styles.itemLineTotal}>
+                        ${formatPrice(item.line_total)}
+                      </strong>
+                    </span>
+                    {item.note && <span className={styles.itemNote}>{item.note}</span>}
+                    <span className={styles.itemVoidedTag}>Anulado</span>
+                  </div>
+                </li>
+              ))}
           </ul>
         )}
         {order.items.length > 0 && (
