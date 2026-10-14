@@ -6,6 +6,7 @@ import {
   voidCharge,
   previewCharge,
   printReceipt,
+  printBill,
 } from "./payments";
 
 describe("lib/api/payments (005-cobro, RF-2, RF-6)", () => {
@@ -49,6 +50,22 @@ describe("lib/api/payments (005-cobro, RF-2, RF-6)", () => {
     expect(url).toContain("/api/pedidos/7/comprobante");
     expect(init.method).toBe("POST");
     expect(result.print_warning).toBeNull();
+  });
+
+  it("printBill posts /api/pedidos/{id}/cuenta with the discount (RF-13)", async () => {
+    mockOk({ print_warning: null });
+    await printBill(7, 5000);
+    const [url, init] = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(url).toContain("/api/pedidos/7/cuenta");
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(init.body)).toEqual({ discount: 5000 });
+  });
+
+  it("printBill sends no discount when there is none (RF-13)", async () => {
+    mockOk({ print_warning: null });
+    await printBill(7);
+    const [, init] = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(JSON.parse(init.body)).toEqual({});
   });
 
   it("listAccounts gets /api/cuentas-pago", async () => {

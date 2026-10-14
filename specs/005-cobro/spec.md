@@ -281,6 +281,28 @@ adición ya impresa en cocina.)*
   ([001 RF-8](../001-autenticacion-usuarios/spec.md)), deberá llevarlo a
   iniciar sesión en vez de dejar una lista desactualizada en pantalla.
 
+### RF-13 — Cuenta antes de pagar
+
+*(Agregado 2026-10-13.)*
+
+- En la ventana de cobro, antes de cobrar, el sistema deberá ofrecer al
+  admin "Imprimir cuenta": imprime en la misma impresora un ticket
+  "CUENTA" con el pedido tal como está, con el mismo formato del
+  comprobante (RF-11): N° del día, mesa (o "Mostrador"), fecha y hora de
+  impresión, cada ítem activo con cantidad, precio unitario y total de la
+  línea, y el TOTAL.
+- Si en la ventana hay un descuento escrito y válido, la cuenta lleva
+  Subtotal, Descuento y TOTAL con ese mismo descuento, calculados por el
+  backend igual que la previsualización y el cobro (RF-10). Con un
+  descuento inválido no se puede imprimir.
+- La cuenta no lleva forma de pago, ni las notas de cocina, ni la nota
+  del admin, ni ítems anulados o adiciones sin enviar, y termina con "No
+  es comprobante de pago".
+- Imprimir la cuenta no cobra ni guarda nada; la ventana queda abierta
+  para cobrar cuando el cliente pague, y se puede imprimir de nuevo.
+- Solo el admin la imprime, y solo de un pedido que se puede cobrar
+  (RF-1); de un pedido en otro estado el sistema la rechaza.
+
 ## Casos límite
 
 - El admin intenta cobrar un pedido que todavía está en "borrador" →

@@ -23,7 +23,7 @@ from apps.orders.services import (
     register_action,
 )
 from apps.payments.models import Payment, PaymentAccount
-from apps.payments.receipt import build_receipt_text
+from apps.payments.receipt import build_bill_text, build_receipt_text
 
 DISCOUNT_REASON_MAX_LENGTH = 200
 ORDER_CHANGED_MESSAGE = (
@@ -191,6 +191,24 @@ def print_receipt(order):
     with _print_lock:
         try:
             get_printer_adapter().print_ticket(text, doc_name="Comprobante")
+        except PrinterNotDetectedError:
+            return PRINTER_NOT_DETECTED_MESSAGE
+        except PrinterFailureError:
+            return PRINTER_FAILURE_MESSAGE
+    return None
+
+
+def print_bill(order, raw_discount=None):
+    """RF-13: print the bill of an order still to be paid, with the
+    discount typed in the charge window — same amounts as the preview
+    and the charge itself (compute_charge). Saves nothing: the order is
+    still not charged. Returns a printer warning, or None when it
+    printed."""
+    amounts = preview_charge(order, raw_discount)
+    text = build_bill_text(order, amounts)
+    with _print_lock:
+        try:
+            get_printer_adapter().print_ticket(text, doc_name="Cuenta")
         except PrinterNotDetectedError:
             return PRINTER_NOT_DETECTED_MESSAGE
         except PrinterFailureError:

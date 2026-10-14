@@ -322,3 +322,13 @@ una condición verificable de "Hecho cuando".
   Hecho cuando: `_ensure_chargeable`, `charge_order` y `void_charge`
   aceptan un pedido sin mesa sin tocar mesas, y el comprobante dice
   "Mostrador". Tests en `test_pedido_admin_mostrador.py`.
+
+- [x] **T39 — Imprimir la cuenta antes de pagar**
+  RF: RF-13
+  Hecho cuando: `build_bill_text` comparte con el comprobante los ítems y
+  los totales; `print_bill` calcula con `preview_charge` e imprime sin
+  guardar nada; `POST /api/pedidos/{id}/cuenta` solo para el admin (409
+  si el pedido no se puede cobrar, 400 si el descuento es inválido);
+  `ChargeOrderModal` muestra "Imprimir cuenta" junto a "Cobrar" y envía
+  el descuento escrito. Tests en `test_print_bill.py`,
+  `ChargeOrderModal.test.tsx` y `payments.test.ts`.

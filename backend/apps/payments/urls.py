@@ -3,6 +3,7 @@ from django.urls import path
 from apps.payments.views import (
     AccountDeleteView,
     AccountListCreateView,
+    BillView,
     PreviewChargeView,
     ReceiptView,
     VoidChargeView,
@@ -24,6 +25,7 @@ urlpatterns = [
         ReceiptView.as_view(),
         name="payments-receipt",
     ),
+    path("pedidos/<int:pk>/cuenta", BillView.as_view(), name="payments-bill"),
     path(
         "cuentas-pago", AccountListCreateView.as_view(), name="payments-accounts"
     ),

@@ -8,6 +8,7 @@ vi.mock("@/lib/api/payments", () => ({
   voidCharge: vi.fn(),
   previewCharge: vi.fn(),
   printReceipt: vi.fn(),
+  printBill: vi.fn(),
 }));
 vi.mock("@/lib/api/orders", () => ({
   chargeOrder: vi.fn(),
@@ -18,7 +19,13 @@ vi.mock("@/lib/api/ordersSocket", () => ({
   subscribeToOrderUpdates: vi.fn(),
 }));
 
-import { listAccounts, voidCharge, previewCharge, printReceipt } from "@/lib/api/payments";
+import {
+  listAccounts,
+  voidCharge,
+  previewCharge,
+  printReceipt,
+  printBill,
+} from "@/lib/api/payments";
 import { chargeOrder, getOrder, setAdminNote } from "@/lib/api/orders";
 import { subscribeToOrderUpdates } from "@/lib/api/ordersSocket";
 
@@ -68,6 +75,7 @@ describe("ChargeOrderModal (005-cobro, RF-1/3/4)", () => {
     vi.mocked(voidCharge).mockReset();
     vi.mocked(previewCharge).mockReset();
     vi.mocked(printReceipt).mockReset();
+    vi.mocked(printBill).mockReset();
     onClose.mockReset();
     onCharged.mockReset();
     vi.mocked(listAccounts).mockResolvedValue(ACCOUNTS);
@@ -476,5 +484,57 @@ describe("ChargeOrderModal (005-cobro, RF-1/3/4)", () => {
     );
     unmount();
     expect(closeSocket).toHaveBeenCalled();
+  });
+
+  describe("bill before paying (T39, RF-13)", () => {
+    it("prints the bill without a discount and keeps the window open", async () => {
+      vi.mocked(printBill).mockResolvedValue({ print_warning: null });
+      const user = userEvent.setup();
+      render(<ChargeOrderModal order={ORDER} onClose={onClose} onCharged={onCharged} />);
+      await screen.findByRole("option", { name: "Efectivo" });
+
+      await user.click(screen.getByRole("button", { name: /imprimir cuenta/i }));
+
+      expect(printBill).toHaveBeenCalledWith(41, undefined);
+      expect(await screen.findByText("Cuenta impresa.")).toBeInTheDocument();
+      expect(chargeOrder).not.toHaveBeenCalled();
+      expect(onClose).not.toHaveBeenCalled();
+      expect(screen.getByRole("button", { name: /^cobrar$/i })).toBeInTheDocument();
+    });
+
+    it("prints the bill with the discount typed in the window", async () => {
+      vi.mocked(previewCharge).mockResolvedValue({ subtotal: "9.00", discount: "2", total: "7.00" });
+      vi.mocked(printBill).mockResolvedValue({ print_warning: null });
+      const user = userEvent.setup();
+      render(<ChargeOrderModal order={ORDER} onClose={onClose} onCharged={onCharged} />);
+      await screen.findByRole("option", { name: "Efectivo" });
+
+      await user.type(screen.getByLabelText(/descuento \(opcional/i), "2");
+      expect(await screen.findByText("$7,00")).toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: /imprimir cuenta/i }));
+
+      expect(printBill).toHaveBeenCalledWith(41, 2);
+    });
+
+    it("shows the printer warning", async () => {
+      vi.mocked(printBill).mockResolvedValue({ print_warning: "Impresora no detectada." });
+      const user = userEvent.setup();
+      render(<ChargeOrderModal order={ORDER} onClose={onClose} onCharged={onCharged} />);
+      await screen.findByRole("option", { name: "Efectivo" });
+      await user.click(screen.getByRole("button", { name: /imprimir cuenta/i }));
+      expect(await screen.findByText("Impresora no detectada.")).toBeInTheDocument();
+    });
+
+    it("cannot print the bill while the discount is invalid", async () => {
+      vi.mocked(previewCharge).mockRejectedValue({
+        detail: ["El descuento no puede ser mayor que el total del pedido."],
+      });
+      const user = userEvent.setup();
+      render(<ChargeOrderModal order={ORDER} onClose={onClose} onCharged={onCharged} />);
+      await screen.findByRole("option", { name: "Efectivo" });
+      await user.type(screen.getByLabelText(/descuento \(opcional/i), "99");
+      expect(await screen.findByText(/no puede ser mayor/i)).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /imprimir cuenta/i })).toBeDisabled();
+    });
   });
 });

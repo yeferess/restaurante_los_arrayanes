@@ -6,6 +6,7 @@ import { subscribeToOrderUpdates } from "@/lib/api/ordersSocket";
 import {
   listAccounts,
   previewCharge,
+  printBill,
   printReceipt,
   voidCharge,
   type ChargePreview,
@@ -127,6 +128,18 @@ export function ChargeOrderModal({
       setMessage(formatError(error));
       // RF-12: if the order changed meanwhile, show its new items/total.
       await reload();
+    }
+  }
+
+  /** RF-13: the bill with the discount typed right now; charges nothing
+   * and the window stays open until the customer pays. */
+  async function handleBill() {
+    setMessage(null);
+    try {
+      const result = await printBill(order.id, hasDiscount ? Number(discount) : undefined);
+      setMessage(result.print_warning ?? "Cuenta impresa.");
+    } catch (error) {
+      setMessage(formatError(error));
     }
   }
 
@@ -311,6 +324,14 @@ export function ChargeOrderModal({
         <div className={styles.actions}>
           <button type="button" className={styles.cancelButton} onClick={onClose}>
             Cancelar
+          </button>
+          <button
+            type="button"
+            className={styles.cancelButton}
+            onClick={handleBill}
+            disabled={Boolean(currentPreview?.error)}
+          >
+            Imprimir cuenta
           </button>
           <button
             type="button"

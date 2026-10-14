@@ -80,6 +80,24 @@ class ReceiptView(APIView):
         return Response({"print_warning": warning})
 
 
+class BillView(APIView):
+    """POST /api/pedidos/{id}/cuenta (RF-13). Admin-only: prints the bill
+    of an order still to be paid, with the optional discount typed in
+    the charge window. Charges nothing."""
+
+    permission_classes = [IsAdmin]
+
+    def post(self, request, pk):
+        order, error = _get_order_or_404(pk)
+        if error:
+            return error
+        try:
+            warning = services.print_bill(order, request.data.get("discount"))
+        except DjangoValidationError as exc:
+            return Response({"detail": exc.messages}, status=_status_for(exc))
+        return Response({"print_warning": warning})
+
+
 class AccountListCreateView(APIView):
     """GET/POST /api/cuentas-pago (RF-2, RF-8). Admin-only."""
 
